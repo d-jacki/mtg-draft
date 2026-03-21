@@ -1,0 +1,18 @@
+{
+  "name": "MTG Draft Tournament",
+  "short_name": "MTG Draft",
+  "description": "Gestione tornei MTG Draft - Swiss e Round Robin",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f4f1ec",
+  "theme_color": "#3d6b8e",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

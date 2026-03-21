@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="76.8" fill="#3d6b8e"/>
+  <text x="256" y="195" text-anchor="middle" dominant-baseline="central" font-family="Segoe UI,sans-serif" font-weight="bold" font-size="143" fill="#fff">MTG</text>
+  <text x="256" y="317" text-anchor="middle" dominant-baseline="central" font-family="Segoe UI,sans-serif" font-weight="600" font-size="72" fill="#e8f0f6">DRAFT</text>
+  <polygon points="256,379 295,407 280,452 232,452 217,407" fill="#c4793c"/>
+</svg>

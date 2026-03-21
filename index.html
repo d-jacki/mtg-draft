@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>MTG Draft Swiss</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#3d6b8e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MTG Draft">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:wght@500;700;900&display=swap');
+  :root {
+    --bg: #f4f1ec;
+    --bg-warm: #ebe7e0;
+    --bg-card: #ffffff;
+    --bg-input: #f7f5f2;
+    --border: #e2ddd6;
+    --border-focus: #b8b0a4;
+    --shadow-sm: 0 1px 3px rgba(60,50,40,0.06), 0 1px 2px rgba(60,50,40,0.04);
+    --shadow-md: 0 4px 12px rgba(60,50,40,0.08), 0 2px 4px rgba(60,50,40,0.04);
+    --shadow-lg: 0 8px 24px rgba(60,50,40,0.1);
+
+    --text: #2c2520;
+    --text-mid: #6b6058;
+    --text-dim: #9c9388;
+    --text-bright: #1a1510;
+
+    --accent: #3d6b8e;
+    --accent-light: #e8f0f6;
+    --accent-dark: #2a4d68;
+
+    --warm: #c4793c;
+    --warm-light: #faf0e6;
+    --warm-bg: #f0dcc8;
+
+    --green: #3a8a5c;
+    --green-light: #e6f5ec;
+    --red: #c0453a;
+    --red-light: #fce8e6;
+
+    --radius: 14px;
+    --radius-sm: 10px;
+    --radius-xs: 6px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 20px 14px;
+    text-align: center;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: var(--shadow-sm);
+  }
+  .header h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 900;
+    font-size: 1.25rem;
+    color: var(--accent-dark);
+    letter-spacing: -0.3px;
+  }
+  .header-sub {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    margin-top: 3px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  /* ── Nav ── */
+  .nav {
+    display: flex;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 0 8px;
+  }
+  .nav-btn {
+    flex: 1; padding: 14px 8px 12px;
+    background: none; border: none;
+    color: var(--text-dim);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.78rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    cursor: pointer;
+    border-bottom: 2.5px solid transparent;
+    transition: color 0.25s, border-color 0.25s;
+  }
+  .nav-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── Screens ── */
+  .screen {
+    display: none; padding: 16px; padding-bottom: 100px;
+    animation: screenIn 0.3s ease;
+  }
+  .screen.active { display: block; }
+  @keyframes screenIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow-sm);
+    animation: cardIn 0.35s ease;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .card-title {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--accent-dark);
+    margin-bottom: 14px;
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 14px 24px; border: none; border-radius: var(--radius-sm);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.95rem; font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.2,0,0,1);
+    width: 100%; touch-action: manipulation;
+    position: relative; overflow: hidden;
+  }
+  .btn::after {
+    content: ''; position: absolute; inset: 0;
+    background: rgba(255,255,255,0); transition: background 0.2s;
+  }
+  .btn:active::after { background: rgba(0,0,0,0.08); }
+  .btn:active { transform: scale(0.975); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-secondary { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); }
+  .btn-sm { padding: 8px 14px; font-size: 0.82rem; width: auto; border-radius: var(--radius-xs); }
+  .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+  .btn-row .btn { flex: 1; }
+
+  /* ── Inputs ── */
+  input[type="text"] {
+    width: 100%; padding: 13px 16px;
+    background: var(--bg-input); border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text);
+    font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.95rem; font-weight: 500;
+    outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+  input::placeholder { color: var(--text-dim); }
+
+  /* ── Player list ── */
+  .player-item {
+    display: flex; align-items: center;
+    padding: 11px 14px; gap: 12px;
+    border-radius: var(--radius-sm);
+    transition: background 0.15s;
+  }
+  .player-item:not(:last-child) { border-bottom: 1px solid var(--border); }
+  .player-num {
+    font-size: 0.75rem; font-weight: 700; color: var(--text-dim);
+    min-width: 22px; text-align: center;
+  }
+  .player-name { flex: 1; font-weight: 600; font-size: 0.95rem; }
+  .player-remove {
+    background: var(--red-light); border: none; color: var(--red);
+    font-size: 1rem; cursor: pointer; padding: 4px 10px; line-height: 1;
+    border-radius: var(--radius-xs); font-weight: 700;
+    transition: all 0.15s;
+  }
+  .player-remove:active { background: var(--red); color: #fff; }
+
+  /* ── Seat list ── */
+  .seat-item {
+    display: flex; align-items: center;
+    padding: 10px 12px; gap: 10px;
+    border-radius: var(--radius-sm);
+  }
+  .seat-item:not(:last-child) { border-bottom: 1px solid var(--border); }
+  .seat-num {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-weight: 800; font-size: 0.8rem;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .seat-name { flex: 1; font-weight: 600; font-size: 0.95rem; }
+  .seat-arrows { display: flex; flex-direction: column; gap: 3px; }
+  .seat-arrow-btn {
+    background: var(--bg-input); border: 1px solid var(--border);
+    color: var(--text-mid); width: 34px; height: 28px;
+    border-radius: var(--radius-xs); cursor: pointer; font-size: 0.72rem;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; transition: all 0.15s;
+  }
+  .seat-arrow-btn:active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .seat-arrow-btn:disabled { opacity: 0.15; cursor: default; }
+
+  /* ── Draft visual ── */
+  .draft-table { position: relative; margin: 16px auto; }
+  .draft-seat { position: absolute; width: 80px; text-align: center; transform: translate(-50%, -50%); }
+  .draft-seat-num {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-weight: 800; font-size: 0.8rem;
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-bottom: 4px; box-shadow: var(--shadow-sm);
+  }
+  .draft-seat-name { font-size: 0.73rem; color: var(--text); line-height: 1.25; word-break: break-word; font-weight: 600; }
+  .draft-table-center {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 68px; height: 68px; border-radius: 50%;
+    border: 2px dashed var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.6rem; color: var(--text-dim); font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1.5px;
+  }
+
+  /* ── Pairing preview ── */
+  .vs-line { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+  .vs-label {
+    color: var(--accent); font-weight: 800; font-size: 0.7rem;
+    min-width: 22px; text-align: center;
+    background: var(--accent-light); padding: 2px 6px; border-radius: var(--radius-xs);
+  }
+  .vs-names { color: var(--text); font-weight: 600; font-size: 0.88rem; }
+
+  /* ── Match cards ── */
+  .match-card {
+    background: var(--bg-card); border: 1.5px solid var(--border);
+    border-radius: var(--radius); margin-bottom: 10px; overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    transition: border-color 0.4s, box-shadow 0.4s, transform 0.2s;
+  }
+  .match-card.bye { background: var(--warm-light); border-color: var(--warm-bg); opacity: 0.85; }
+  .match-card.rest { background: var(--bg-input); border-style: dashed; opacity: 0.6; }
+  .match-card.forfeit { background: var(--red-light); border-color: #e8c4c1; opacity: 0.7; }
+  .match-card.flash-scored {
+    animation: flashScore 1.2s ease forwards;
+  }
+  @keyframes flashScore {
+    0% { border-color: var(--green); box-shadow: 0 0 20px rgba(58,138,92,0.2); transform: scale(1.01); }
+    100% { border-color: var(--border); box-shadow: var(--shadow-sm); transform: scale(1); }
+  }
+  .match-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 16px;
+    background: var(--bg-input);
+    font-size: 0.72rem; color: var(--text-dim);
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .match-status-done { color: var(--green); }
+  .match-status-forfeit { color: var(--red); }
+  .match-players { display: flex; align-items: center; padding: 14px 16px; gap: 10px; }
+  .match-player {
+    flex: 1; text-align: center; font-weight: 700; font-size: 0.95rem;
+    transition: color 0.3s;
+  }
+  .match-player.winner { color: var(--accent-dark); }
+  .match-player.dropped { color: var(--text-dim); text-decoration: line-through; }
+  .match-vs {
+    font-size: 0.65rem; color: var(--text-dim); font-weight: 800;
+    text-transform: uppercase; letter-spacing: 1px;
+    background: var(--bg-input); padding: 4px 8px; border-radius: var(--radius-xs);
+  }
+  .match-score-btns {
+    display: flex; gap: 7px; padding: 4px 16px 14px;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .score-btn {
+    padding: 11px 14px; background: var(--bg-input);
+    border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--text); font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.88rem; font-weight: 700; cursor: pointer;
+    transition: all 0.15s; min-width: 50px; text-align: center;
+  }
+  .score-btn:active { transform: scale(0.93); background: var(--accent-light); border-color: var(--accent); }
+  .score-btn.draw-btn { font-size: 0.78rem; color: var(--text-dim); border-style: dashed; }
+  .score-btn.win-btn {
+    flex: 1; padding: 14px 10px; font-size: 0.95rem;
+    background: var(--accent-light); border-color: var(--accent);
+    color: var(--accent-dark);
+  }
+  .score-btn.win-btn:active { background: var(--accent); color: #fff; }
+  .match-result-display {
+    text-align: center; padding: 10px 16px 14px;
+    font-size: 1.05rem; font-weight: 800; color: var(--accent-dark);
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .match-result-display:active { opacity: 0.6; }
+  .match-result-display span {
+    font-size: 0.68rem; color: var(--text-dim); display: block;
+    font-weight: 500; margin-top: 2px;
+  }
+
+  /* ── Timer ── */
+  .timer-bar {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 18px;
+    margin-bottom: 12px; text-align: center;
+    box-shadow: var(--shadow-sm);
+  }
+  .timer-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }
+  .timer-display {
+    font-family: 'Fraunces', serif; font-weight: 900;
+    font-size: 2.2rem; color: var(--text-bright);
+    letter-spacing: 1px; margin: 6px 0;
+    transition: color 0.3s;
+  }
+  .timer-display.warning { color: var(--red); animation: timerPulse 1.2s infinite; }
+  @keyframes timerPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .timer-btns { display: flex; gap: 8px; justify-content: center; margin-top: 8px; }
+
+  /* ── Round progress ── */
+  .round-progress {
+    font-size: 0.78rem; color: var(--text-dim); text-align: center;
+    padding: 8px 0 4px; font-weight: 600;
+  }
+  .round-progress .done { color: var(--green); }
+  .round-progress .pending { color: var(--warm); }
+
+  /* ── Standings ── */
+  .standings-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .standings-table th {
+    text-align: left; padding: 10px 7px;
+    border-bottom: 2px solid var(--accent);
+    color: var(--accent-dark); font-size: 0.68rem; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.8px; white-space: nowrap;
+  }
+  .standings-table td {
+    padding: 12px 7px; border-bottom: 1px solid var(--border); vertical-align: middle;
+  }
+  .standings-table tbody tr {
+    transition: background 0.15s; cursor: pointer;
+  }
+  .standings-table tbody tr:active { background: var(--accent-light); }
+  .standings-table tr.dropped td { color: var(--text-dim); text-decoration: line-through; }
+  .standings-rank { font-weight: 800; color: var(--accent); font-size: 0.9rem; }
+  .standings-name { font-weight: 700; }
+  .standings-record { font-weight: 800; color: var(--text-bright); }
+
+  /* ── Player detail ── */
+  .player-detail {
+    background: var(--bg-input); padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    animation: detailIn 0.25s ease;
+  }
+  @keyframes detailIn { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 400px; } }
+  .player-detail-match {
+    display: flex; justify-content: space-between;
+    padding: 6px 0; font-size: 0.8rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .player-detail-match:last-child { border-bottom: none; }
+
+  /* ── Status ── */
+  .status {
+    padding: 10px 16px; text-align: center;
+    font-size: 0.8rem; font-weight: 700;
+    letter-spacing: 0.3px;
+    border-bottom: 1px solid var(--border);
+  }
+  .status-active { background: var(--green-light); color: var(--green); }
+  .status-ended { background: var(--warm-light); color: var(--warm); }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    display: none; position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(44,37,32,0.4);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    z-index: 200;
+    align-items: center; justify-content: center; padding: 20px;
+    animation: modalBgIn 0.25s ease;
+  }
+  @keyframes modalBgIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 28px;
+    max-width: 360px; width: 100%;
+    box-shadow: var(--shadow-lg);
+    animation: modalIn 0.3s cubic-bezier(0.2,0,0,1);
+  }
+  @keyframes modalIn { from { opacity: 0; transform: scale(0.92) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+  .modal h3 { font-family: 'Fraunces', serif; font-weight: 700; color: var(--accent-dark); margin-bottom: 10px; font-size: 1.05rem; }
+  .modal p { font-size: 0.88rem; color: var(--text-mid); margin-bottom: 18px; line-height: 1.5; }
+
+  .mode-choice-btn {
+    padding: 16px; background: var(--bg-input); border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text);
+    font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer;
+    width: 100%; text-align: left; margin-bottom: 8px;
+    transition: all 0.2s;
+  }
+  .mode-choice-btn:active { border-color: var(--accent); background: var(--accent-light); transform: scale(0.98); }
+  .mode-choice-btn strong { display: block; font-size: 0.95rem; margin-bottom: 4px; color: var(--text-bright); font-weight: 700; }
+  .mode-choice-btn .desc { font-size: 0.78rem; color: var(--text-dim); }
+
+  /* ── Mode badge ── */
+  .mode-badge {
+    display: inline-block; padding: 3px 8px; border-radius: var(--radius-xs);
+    font-size: 0.6rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.8px; margin-left: 6px; vertical-align: middle;
+  }
+  .mode-badge.swiss { background: var(--accent-light); color: var(--accent-dark); }
+  .mode-badge.rr { background: var(--warm-light); color: var(--warm); }
+
+  /* ── Share ── */
+  .share-btn {
+    background: var(--accent); color: #fff; border: none;
+    border-radius: var(--radius-sm); padding: 13px 20px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.9rem; font-weight: 700; cursor: pointer;
+    width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-top: 10px; transition: all 0.15s;
+  }
+  .share-btn:active { transform: scale(0.97); }
+
+  /* ── Utilities ── */
+  .mt { margin-top: 12px; } .mb { margin-bottom: 12px; }
+  .text-center { text-align: center; } .text-dim { color: var(--text-dim); }
+  .text-sm { font-size: 0.85rem; } .text-xs { font-size: 0.75rem; }
+  .hidden { display: none !important; }
+  .flex-between { display: flex; justify-content: space-between; align-items: center; }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--text-bright); color: #fff;
+    padding: 12px 28px;
+    border-radius: 100px; font-size: 0.88rem; font-weight: 600;
+    z-index: 300;
+    transition: transform 0.35s cubic-bezier(0.2,0,0,1);
+    pointer-events: none; white-space: nowrap;
+    box-shadow: var(--shadow-lg);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  .swipe-area { touch-action: pan-y; }
+
+  select {
+    width: 100%; padding: 13px 16px;
+    background: var(--bg-input); border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.95rem; font-weight: 500;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239c9388' stroke-width='2' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+  }
+  .btn:focus-visible, .score-btn:focus-visible, .nav-btn:focus-visible,
+  .seat-arrow-btn:focus-visible, .player-remove:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>MTG Draft</h1>
+  <div class="header-sub" id="headerSub">Nuovo torneo</div>
+</div>
+
+<div class="nav">
+  <button class="nav-btn active" data-tab="setup">Setup</button>
+  <button class="nav-btn" data-tab="draft">Tavolo</button>
+  <button class="nav-btn" data-tab="round">Round</button>
+  <button class="nav-btn" data-tab="standings">Classifica</button>
+</div>
+
+<div class="status hidden" id="statusBar"></div>
+
+<!-- SETUP -->
+<div class="screen active" id="screen-setup">
+  <div class="card">
+    <div class="card-title">Giocatori</div>
+    <div style="display:flex;gap:8px;">
+      <input type="text" id="playerInput" placeholder="Nome giocatore" autocomplete="off" />
+      <button class="btn btn-primary btn-sm" style="width:auto;min-width:56px;" onclick="addPlayer()" aria-label="Aggiungi giocatore">+</button>
+    </div>
+    <div id="playerList" class="mt"></div>
+    <div class="mt text-sm text-dim" id="playerCount">0 giocatori</div>
+  </div>
+  <button class="btn btn-primary mt" id="goToSeatingBtn" onclick="goToSeating()" disabled>Disposizione al tavolo →</button>
+</div>
+
+<!-- DRAFT -->
+<div class="screen" id="screen-draft">
+  <div class="card">
+    <div class="flex-between mb">
+      <div class="card-title" style="margin:0;">Ordine al tavolo</div>
+      <button class="btn btn-secondary btn-sm" id="reshuffleBtn" onclick="reshuffleDraft()">Rimescola</button>
+    </div>
+    <div class="text-xs text-dim mb">Usa le frecce per spostare i giocatori. Al round 1 si scontrano i lati opposti.</div>
+    <div id="seatList"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Vista tavolo</div>
+    <div id="draftVisual"></div>
+  </div>
+  <div class="card">
+    <div class="card-title" id="previewTitle">Accoppiamenti Round 1</div>
+    <div id="pairingPreview"></div>
+  </div>
+  <button class="btn btn-primary mt" id="startBtn" onclick="handleStart()">Inizia torneo</button>
+</div>
+
+<!-- ROUND -->
+<div class="screen" id="screen-round">
+  <div id="roundContent" class="swipe-area"></div>
+</div>
+
+<!-- STANDINGS -->
+<div class="screen" id="screen-standings">
+  <div id="standingsContent"></div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3 id="modalTitle"></h3>
+    <p id="modalText"></p>
+    <div id="modalBody"></div>
+    <div class="btn-row" id="modalButtons">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal()">Annulla</button>
+      <button class="btn btn-danger btn-sm" id="modalConfirm">Conferma</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const T = { players: [], draftOrder: [], rounds: [], started: false, ended: false, totalRounds: 0, currentRound: 0, mode: 'swiss' };
+let viewingRound = 1, playerIdCounter = 0, lastScoredMatch = -1, expandedPlayer = null;
+const TM = { running: false, seconds: 0, total: 50 * 60, interval: null };
+
+const $id = id => document.getElementById(id);
+const $qsa = (sel, el) => (el || document).querySelectorAll(sel);
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function shuffle(a) { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function toast(m) { const t = $id('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2200); }
+function vibrate(ms) { if (navigator.vibrate) navigator.vibrate(ms); }
+const P = id => T.players.find(p => p.id === id);
+function save() {
+  localStorage.setItem('mtg-t', JSON.stringify({
+    T, viewingRound, playerIdCounter,
+    tm: { seconds: TM.seconds, running: TM.running, total: TM.total },
+    savedAt: Date.now()
+  }));
+}
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem('mtg-t'));
+    if (!d) return false;
+    Object.assign(T, d.T);
+    viewingRound = d.viewingRound || 1;
+    playerIdCounter = d.playerIdCounter || 0;
+    TM.total = d.tm?.total || 50 * 60;
+    TM.seconds = d.tm?.seconds || 0;
+    if (d.tm?.running && d.savedAt) TM.seconds += Math.floor((Date.now() - d.savedAt) / 1000);
+    return d.tm?.running || false;
+  } catch { return false; }
+}
+window.addEventListener('beforeunload', e => { if (T.started && !T.ended) { e.preventDefault(); e.returnValue = ''; } });
+function showModal(t, txt, fn) { $id('modalTitle').textContent = t; $id('modalText').textContent = txt; $id('modalBody').innerHTML = ''; $id('modalButtons').classList.remove('hidden'); $id('modal').classList.add('active'); $id('modalConfirm').onclick = () => { closeModal(); fn(); }; }
+function showModalCustom(t, txt, h) { $id('modalTitle').textContent = t; $id('modalText').textContent = txt; $id('modalBody').innerHTML = h; $id('modalButtons').classList.add('hidden'); $id('modal').classList.add('active'); }
+function closeModal() { $id('modal').classList.remove('active'); }
+$id('modal').addEventListener('click', e => { if (e.target === $id('modal')) closeModal(); });
+
+// ── SETUP ──
+$id('playerInput').addEventListener('keydown', e => { if (e.key === 'Enter') addPlayer(); });
+function addPlayer() {
+  const inp = $id('playerInput'), name = inp.value.trim();
+  if (!name) return;
+  if (T.players.length >= 16) return toast('Massimo 16 giocatori');
+  if (T.players.some(p => p.name.toLowerCase() === name.toLowerCase())) return toast('Nome già presente');
+  T.players.push({ id: ++playerIdCounter, name, dropped: false, droppedAtRound: null });
+  inp.value = ''; inp.focus(); renderPlayerList(); save();
+}
+function removePlayer(id) { T.players = T.players.filter(p => p.id !== id); renderPlayerList(); save(); }
+function renderPlayerList() {
+  $id('playerList').innerHTML = T.players.map((p, i) => `<div class="player-item"><span class="player-num">${i + 1}</span><span class="player-name">${esc(p.name)}</span><button class="player-remove" onclick="removePlayer(${p.id})" aria-label="Rimuovi ${esc(p.name)}">✕</button></div>`).join('');
+  const n = T.players.length; $id('playerCount').textContent = `${n} giocator${n === 1 ? 'e' : 'i'}`;
+  $id('goToSeatingBtn').disabled = n < 4;
+}
+
+// ── SEATING ──
+function goToSeating() {
+  if (T.players.length < 4) return;
+  if (T.draftOrder.length !== T.players.length || !T.draftOrder.every(id => T.players.some(p => p.id === id)))
+    T.draftOrder = shuffle(T.players.map(p => p.id));
+  renderSeating(); switchTab('draft');
+}
+function renderSeating() { renderSeatList(); renderDraftVisual(); renderPairingPreview(); }
+function renderSeatList() {
+  const n = T.draftOrder.length, locked = T.started;
+  $id('seatList').innerHTML = T.draftOrder.map((id, i) => {
+    const p = T.players.find(p => p.id === id);
+    return `<div class="seat-item"><div class="seat-num">${i + 1}</div><div class="seat-name">${esc(p.name)}</div>
+      ${locked ? '' : `<div class="seat-arrows"><button class="seat-arrow-btn" onclick="moveSeat(${i},-1)" ${i === 0 ? 'disabled' : ''} aria-label="Sposta su">▲</button><button class="seat-arrow-btn" onclick="moveSeat(${i},1)" ${i === n - 1 ? 'disabled' : ''} aria-label="Sposta giù">▼</button></div>`}</div>`;
+  }).join('');
+}
+function moveSeat(i, d) { const j = i + d; if (j < 0 || j >= T.draftOrder.length) return; [T.draftOrder[i], T.draftOrder[j]] = [T.draftOrder[j], T.draftOrder[i]]; renderSeating(); save(); }
+function reshuffleDraft() { T.draftOrder = shuffle(T.players.map(p => p.id)); renderSeating(); save(); toast('Posizioni rimescolate'); }
+function renderDraftVisual() {
+  const ids = T.draftOrder, n = ids.length;
+  const radius = Math.min(120, 90 + n * 3), size = (radius + 55) * 2, cx = size / 2, cy = size / 2;
+  let h = `<div class="draft-table" style="width:${size}px;height:${size}px;"><div class="draft-table-center">Tavolo</div>`;
+  ids.forEach((id, i) => {
+    const a = (2 * Math.PI * i / n) - Math.PI / 2, p = T.players.find(p => p.id === id);
+    h += `<div class="draft-seat" style="left:${cx + radius * Math.cos(a)}px;top:${cy + radius * Math.sin(a)}px;"><div class="draft-seat-num">${i + 1}</div><div class="draft-seat-name">${esc(p.name)}</div></div>`;
+  });
+  $id('draftVisual').innerHTML = h + '</div>';
+}
+function renderPairingPreview() {
+  const o = T.draftOrder, n = o.length, half = Math.floor(n / 2); let h = '';
+  if (n % 2 === 0) {
+    $id('previewTitle').textContent = 'Accoppiamenti Round 1';
+    for (let i = 0; i < half; i++) { const p1 = T.players.find(p => p.id === o[i]), p2 = T.players.find(p => p.id === o[i + half]); h += `<div class="vs-line"><span class="vs-label">T${i + 1}</span><span class="vs-names">${esc(p1.name)} vs ${esc(p2.name)}</span></div>`; }
+  } else {
+    $id('previewTitle').textContent = 'Numero dispari';
+    h = `<div class="text-sm text-dim" style="line-height:1.6;">Siete in <b>${n}</b> — alla partenza potrai scegliere tra Swiss con bye e tutti contro tutti BO1.</div>`;
+  }
+  $id('pairingPreview').innerHTML = h;
+}
+
+// ── START ──
+function handleStart() {
+  if (T.players.length < 4) return;
+  const n = T.players.length;
+  const defR = Math.ceil(Math.log2(n));
+  const maxR = Math.min(n - 1, 8);
+  const opts = Array.from({length: maxR - 1}, (_, i) => i + 2).map(r => `<option value="${r}"${r===defR?' selected':''}>${r} round</option>`).join('');
+  if (n % 2 === 1) {
+    showModalCustom('Formato torneo', `Siete in ${n} (dispari).`,
+      `<div class="mb"><label class="text-sm" style="display:block;margin-bottom:6px;font-weight:600;color:var(--text-mid);">Round (Swiss):</label><select id="roundCountSel">${opts}</select></div>
+      <button class="mode-choice-btn" onclick="closeModal(); startWithMode('swiss', parseInt($id('roundCountSel').value))"><strong>Swiss con Bye</strong><span class="desc">Cross-table R1, un bye a turno</span></button>
+      <button class="mode-choice-btn" onclick="closeModal(); startWithMode('roundrobin')"><strong>Tutti contro tutti BO1</strong><span class="desc">${n} round, ${n - 1} partite a testa</span></button>
+      <button class="btn btn-secondary btn-sm mt" onclick="closeModal()">Annulla</button>`);
+  } else {
+    showModalCustom('Configurazione torneo', `${n} giocatori — formato Swiss.`,
+      `<div class="mb"><label class="text-sm" style="display:block;margin-bottom:6px;font-weight:600;color:var(--text-mid);">Numero round:</label><select id="roundCountSel">${opts}</select></div>
+      <button class="btn btn-primary" onclick="closeModal(); startWithMode('swiss', parseInt($id('roundCountSel').value))">Inizia torneo</button>
+      <button class="btn btn-secondary btn-sm mt" onclick="closeModal()">Annulla</button>`);
+  }
+}
+function startWithMode(mode, rounds) {
+  T.mode = mode; T.started = true; T.ended = false; T.rounds = []; T.currentRound = 0;
+  if (mode === 'swiss') T.totalRounds = rounds || Math.ceil(Math.log2(T.players.length));
+  else { T.totalRounds = T.players.length; generateAllRRRounds(); }
+  $id('screen-setup').querySelectorAll('input, button').forEach(el => el.disabled = true);
+  $id('startBtn').classList.add('hidden'); $id('reshuffleBtn').classList.add('hidden');
+  renderSeatList(); updateStatus();
+  if (mode === 'swiss') nextRound(); else { T.currentRound = 1; viewingRound = 1; renderRound(); }
+  switchTab('round');
+}
+
+// ── RR SCHEDULE ──
+function generateAllRRRounds() {
+  const ids = T.draftOrder.slice(), n = ids.length, N = n + 1;
+  const rot = []; for (let i = 1; i < N; i++) rot.push(i);
+  T.rounds = [];
+  for (let r = 0; r < N - 1; r++) {
+    const pairings = []; let restIdx = null;
+    const o0 = rot[0];
+    if (o0 === n) restIdx = 0; else pairings.push(mkM(ids[0], ids[o0]));
+    const half = (rot.length - 1) / 2;
+    for (let i = 1; i <= half; i++) { const a = rot[i], b = rot[rot.length - i]; if (a === n) restIdx = b; else if (b === n) restIdx = a; else pairings.push(mkM(ids[a], ids[b])); }
+    if (restIdx !== null) pairings.push({ p1: ids[restIdx], p2: null, p1wins: null, p2wins: null, draws: 0, bye: false, rest: true, forfeit: false });
+    T.rounds.push({ pairings, locked: false });
+    rot.unshift(rot.pop());
+  }
+}
+function mkM(a, b) { return { p1: a, p2: b, p1wins: null, p2wins: null, draws: 0, bye: false, rest: false, forfeit: false }; }
+
+// ── SCORING ──
+function getActivePlayers() { return T.players.filter(p => !p.dropped); }
+function getPlayerRecord(pid) {
+  let w=0,l=0,d=0,gw=0,gl=0,gd=0,opps=[],rp=0;
+  for (const r of T.rounds) for (const m of r.pairings) {
+    if (m.rest) continue;
+    if (m.bye && m.p1===pid){w++;gw+=2;rp++;continue;}
+    if (m.p1===pid||m.p2===pid){if(m.p1wins==null)continue;rp++;const is1=m.p1===pid;opps.push(is1?m.p2:m.p1);const mg=is1?m.p1wins:m.p2wins,og=is1?m.p2wins:m.p1wins;gw+=mg;gl+=og;gd+=m.draws;if(mg>og)w++;else if(mg<og)l++;else d++;}
+  }
+  return{wins:w,losses:l,draws:d,gameWins:gw,gameLosses:gl,gameDraws:gd,opponents:opps,roundsPlayed:rp};
+}
+function matchPoints(pid){const r=getPlayerRecord(pid);return r.wins*3+r.draws;}
+function mwp(pid){const r=getPlayerRecord(pid);return r.roundsPlayed===0?0.33:Math.max(0.33,(r.wins*3+r.draws)/(r.roundsPlayed*3));}
+function gwp(pid){const r=getPlayerRecord(pid);const t=r.gameWins+r.gameLosses+r.gameDraws;return t===0?0.33:Math.max(0.33,(r.gameWins*3+r.gameDraws)/(t*3));}
+function omw(pid){const r=getPlayerRecord(pid);return r.opponents.length===0?0.33:r.opponents.reduce((a,o)=>a+mwp(o),0)/r.opponents.length;}
+function ogw(pid){const r=getPlayerRecord(pid);return r.opponents.length===0?0.33:r.opponents.reduce((a,o)=>a+gwp(o),0)/r.opponents.length;}
+
+function getRRRecord(pid){let w=0,l=0,d=0;for(const r of T.rounds)for(const m of r.pairings){if(m.rest||m.bye)continue;if(m.p1===pid||m.p2===pid){if(m.p1wins==null)continue;const is1=m.p1===pid,mg=is1?m.p1wins:m.p2wins,og=is1?m.p2wins:m.p1wins;if(mg>og)w++;else if(mg<og)l++;else d++;}}return{wins:w,losses:l,draws:d};}
+function rrH2H(a,b){for(const r of T.rounds)for(const m of r.pairings){if(m.rest||m.bye||m.p1wins==null)continue;if(m.p1===a&&m.p2===b)return m.p1wins>m.p2wins?1:m.p1wins<m.p2wins?-1:0;if(m.p1===b&&m.p2===a)return m.p2wins>m.p1wins?1:m.p2wins<m.p1wins?-1:0;}return 0;}
+function getRRStandings(){return T.players.map(p=>{const rec=getRRRecord(p.id);return{...p,record:rec,wins:rec.wins};}).sort((a,b)=>(b.wins-a.wins)||-rrH2H(a.id,b.id));}
+function getSwissStandings(){return T.players.map(p=>{const mp=matchPoints(p.id);return{...p,mp,omw:omw(p.id),gwp:gwp(p.id),ogw:ogw(p.id),record:getPlayerRecord(p.id)};}).sort((a,b)=>(b.mp-a.mp)||(b.omw-a.omw)||(b.gwp-a.gwp)||(b.ogw-a.ogw));}
+
+function getPlayerMatches(pid) {
+  const matches = [];
+  T.rounds.forEach((r, ri) => { r.pairings.forEach(m => {
+    if (m.rest) return;
+    if (m.bye && m.p1 === pid) { matches.push({ round: ri+1, opp: 'BYE', result: 'W', score: '2-0' }); return; }
+    if (m.p1 === pid || m.p2 === pid) {
+      if (m.p1wins == null) return;
+      const is1 = m.p1 === pid, opp = T.players.find(p => p.id === (is1 ? m.p2 : m.p1));
+      const mg = is1 ? m.p1wins : m.p2wins, og = is1 ? m.p2wins : m.p1wins;
+      const res = mg > og ? 'W' : mg < og ? 'L' : 'D';
+      const score = T.mode === 'roundrobin' ? (res === 'W' ? 'Vinto' : res === 'L' ? 'Perso' : 'Pari') : `${mg}-${og}`;
+      matches.push({ round: ri+1, opp: opp ? opp.name : '?', result: res, score });
+    }
+  }); }); return matches;
+}
+
+// ── PAIRING ──
+function havePlayed(a,b){for(const r of T.rounds)for(const m of r.pairings){if(m.bye||m.rest)continue;if((m.p1===a&&m.p2===b)||(m.p1===b&&m.p2===a))return true;}return false;}
+function hadBye(pid){for(const r of T.rounds)for(const m of r.pairings)if(m.bye&&m.p1===pid)return true;return false;}
+function generateDraftR1(){const o=T.draftOrder.filter(id=>{const p=T.players.find(p=>p.id===id);return p&&!p.dropped;});const n=o.length,half=Math.floor(n/2),pairs=[];for(let i=0;i<half;i++)pairs.push({p1:o[i],p2:o[i+half],p1wins:null,p2wins:null,draws:0,bye:false,rest:false,forfeit:false});if(n%2===1)pairs.push({p1:o[n-1],p2:null,p1wins:2,p2wins:0,draws:0,bye:true,rest:false,forfeit:false});return pairs;}
+function generateSwiss(){const active=getActivePlayers(),n=active.length;if(n<2)return[];const sorted=[...active].sort((a,b)=>{const d=matchPoints(b.id)-matchPoints(a.id);return d!==0?d:Math.random()-0.5;});let bye=null,pool=sorted.map(p=>p.id);if(n%2===1){for(let i=pool.length-1;i>=0;i--){if(!hadBye(pool[i])){bye=pool[i];pool.splice(i,1);break;}}if(!bye)bye=pool.pop();}const pairs=pairPool(pool);if(!pairs){const fb=[];for(let i=0;i<pool.length-1;i+=2)fb.push({p1:pool[i],p2:pool[i+1],p1wins:null,p2wins:null,draws:0,bye:false,rest:false,forfeit:false});if(bye)fb.push({p1:bye,p2:null,p1wins:2,p2wins:0,draws:0,bye:true,rest:false,forfeit:false});return fb;}if(bye)pairs.push({p1:bye,p2:null,p1wins:2,p2wins:0,draws:0,bye:true,rest:false,forfeit:false});return pairs;}
+function pairPool(pool){if(pool.length===0)return[];if(pool.length===2)return[{p1:pool[0],p2:pool[1],p1wins:null,p2wins:null,draws:0,bye:false,rest:false,forfeit:false}];const first=pool[0],rest=pool.slice(1);const cands=[...rest].sort((a,b)=>(havePlayed(first,a)?1:0)-(havePlayed(first,b)?1:0));for(const c of cands){const sub=pairPool(rest.filter(id=>id!==c));if(sub)return[{p1:first,p2:c,p1wins:null,p2wins:null,draws:0,bye:false,rest:false,forfeit:false},...sub];}return null;}
+function generatePairings(){return T.currentRound===1?generateDraftR1():generateSwiss();}
+
+// ── DROP ──
+function dropPlayer(){const sel=$id('dropSel');if(!sel)return;const pid=parseInt(sel.value);if(!pid)return;const p=T.players.find(p=>p.id===pid);if(!p)return;const hint=T.mode==='roundrobin'?' Le partite non giocate diventeranno forfeit.':'';showModal(`Ritirare ${p.name}?`,'I risultati precedenti restano.'+hint,()=>{p.dropped=true;p.droppedAtRound=T.currentRound;if(T.mode==='roundrobin'){T.rounds.forEach(r=>r.pairings.forEach(m=>{if(m.rest||m.bye||m.p1wins!==null)return;if(m.p1===pid){m.p1wins=0;m.p2wins=1;m.draws=0;m.forfeit=true;}else if(m.p2===pid){m.p1wins=1;m.p2wins=0;m.draws=0;m.forfeit=true;}}));}renderRound();renderStandings();save();toast(`${p.name} ritirato`);});}
+
+// ── TIMER ──
+function renderTimer(){const rem=TM.total-TM.seconds;const min=Math.floor(Math.abs(rem)/60),sec=Math.abs(rem)%60;const sign=rem<0?'+':'';const warn=rem<=300?'warning':'';
+return `<div class="timer-bar"><div class="timer-label">Timer round</div><div class="timer-display ${warn}">${sign}${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}</div><div class="timer-btns">${TM.running?`<button class="btn btn-secondary btn-sm" onclick="pauseTimer()">Pausa</button>`:`<button class="btn btn-primary btn-sm" onclick="startTimer()">${TM.seconds>0?'Riprendi':'Avvia'}</button>`}<button class="btn btn-secondary btn-sm" onclick="resetTimer()">Reset</button></div></div>`;}
+function startTimer(){if(TM.running)return;TM.running=true;save();TM.interval=setInterval(()=>{TM.seconds++;const rem=TM.total-TM.seconds;const el=document.querySelector('.timer-display');if(el){const min=Math.floor(Math.abs(rem)/60),sec=Math.abs(rem)%60;el.textContent=`${rem<0?'+':''}${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;el.className='timer-display'+(rem<=300?' warning':'');}if(rem===0){vibrate([200,100,200,100,400]);toast('Tempo scaduto!');}if(rem===-300){vibrate([400,200,400]);toast('+5 turni extra scaduti!');}},1000);renderRound();}
+function pauseTimer(){TM.running=false;clearInterval(TM.interval);save();renderRound();}
+function resetTimer(){TM.running=false;clearInterval(TM.interval);TM.seconds=0;save();renderRound();}
+
+// ── ROUND ──
+function nextRound(){if(T.currentRound>=T.totalRounds){endTournament();return;}T.currentRound++;T.rounds.push({pairings:generatePairings(),locked:false});viewingRound=T.currentRound;TM.seconds=0;TM.running=false;clearInterval(TM.interval);renderRound();updateStatus();save();}
+function viewRound(n){const max=T.mode==='roundrobin'?T.totalRounds:T.currentRound;if(n>=1&&n<=max){viewingRound=n;renderRound();}}
+
+function renderRound(){
+  const C=$id('roundContent');if(!T.rounds.length){C.innerHTML='<div class="card text-center text-dim">Nessun round</div>';return;}
+  const isRR=T.mode==='roundrobin',maxNav=isRR?T.totalRounds:T.currentRound;
+  let h='';
+  if(!isRR&&!T.ended)h+=renderTimer();
+  h+=`<div class="card" style="padding:12px 16px;"><div class="flex-between"><button class="btn btn-secondary btn-sm" onclick="viewRound(${viewingRound-1})" ${viewingRound<=1?'disabled':''}>←</button><span style="font-weight:800;font-size:0.95rem;">Round ${viewingRound} <span style="font-weight:500;color:var(--text-dim);">/ ${T.totalRounds}</span> <span class="mode-badge ${isRR?'rr':'swiss'}">${isRR?'BO1':'Swiss'}</span></span><button class="btn btn-secondary btn-sm" onclick="viewRound(${viewingRound+1})" ${viewingRound>=maxNav?'disabled':''}>→</button></div></div>`;
+  const round=T.rounds[viewingRound-1];if(!round){C.innerHTML=h;return;}
+  const real=round.pairings.filter(m=>!m.rest&&!m.bye),done=real.filter(m=>m.p1wins!==null).length,tot=real.length;
+  h+=`<div class="round-progress"><span class="done">${done}</span> / ${tot} completati${done<tot?` · <span class="pending">${tot-done} rimanent${tot-done===1?'e':'i'}</span>`:' ✓'}</div>`;
+  const canEdit=!T.ended&&(isRR||viewingRound===T.currentRound);
+  let firstInc=null;
+  for(let i=0;i<round.pairings.length;i++){
+    const m=round.pairings[i],p1=T.players.find(p=>p.id===m.p1),p2=m.p2?T.players.find(p=>p.id===m.p2):null;
+    if(m.rest){h+=`<div class="match-card rest"><div class="match-header"><span>Riposo</span><span>—</span></div><div class="match-players"><div class="match-player text-dim">${esc(p1.name)} riposa</div></div></div>`;continue;}
+    if(m.bye){h+=`<div class="match-card bye"><div class="match-header"><span>Tavolo ${i+1}</span><span>BYE</span></div><div class="match-players"><div class="match-player">${esc(p1.name)}</div><div class="match-vs">bye</div><div class="match-player text-dim">2 – 0</div></div></div>`;continue;}
+    const has=m.p1wins!==null;if(!has&&!firstInc)firstInc=`match-${viewingRound}-${i}`;
+    const flash=(lastScoredMatch===i)?'flash-scored':'',forf=m.forfeit?'forfeit':'';
+    const w1=has&&m.p1wins>m.p2wins?'winner':'',w2=has&&m.p2wins>m.p1wins?'winner':'';
+    const d1=p1.dropped?'dropped':'',d2=p2&&p2.dropped?'dropped':'';
+    h+=`<div class="match-card ${flash} ${forf}" id="match-${viewingRound}-${i}"><div class="match-header"><span>Tavolo ${i+1}</span>${m.forfeit?'<span class="match-status-forfeit">Forfeit</span>':has?'<span class="match-status-done">Completato</span>':'<span>In attesa</span>'}</div>
+      <div class="match-players"><div class="match-player ${w1} ${d1}">${esc(p1.name)}</div><div class="match-vs">vs</div><div class="match-player ${w2} ${d2}">${p2?esc(p2.name):'?'}</div></div>`;
+    if(canEdit&&!m.forfeit){if(has)h+=`<div class="match-result-display" onclick="editMatch(${viewingRound-1},${i})">${fmtRes(m)}<span>Tocca per modificare</span></div>`;else h+=isRR?rrBtns(i,m):swissBtns(i,m);}
+    else if(has)h+=`<div class="match-result-display" style="cursor:default;">${fmtRes(m)}</div>`;
+    h+='</div>';
+  }
+  if(!T.ended){if(isRR)h+=renderRRActions();else if(viewingRound===T.currentRound)h+=renderSwissActions(round);}
+  C.innerHTML=h;lastScoredMatch=-1;
+  if(firstInc&&canEdit)setTimeout(()=>{const el=document.getElementById(firstInc);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},120);
+}
+
+function renderSwissActions(round){const allDone=round.pairings.every(m=>m.p1wins!==null);let h='<div class="card" style="padding:14px;">';const act=getActivePlayers();
+  if(act.length>2){h+=`<div class="mb"><select id="dropSel"><option value="">Ritira giocatore...</option>${act.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div><button class="btn btn-danger btn-sm mb" onclick="dropPlayer()">Ritira dal torneo</button>`;}
+  if(allDone){h+=T.currentRound<T.totalRounds?'<button class="btn btn-primary" onclick="nextRound()">Round successivo →</button>':'<button class="btn btn-primary" onclick="endTournament()">Termina torneo</button>';}
+  if(T.currentRound>1)h+=`<button class="btn btn-secondary mt" onclick="confirmUndo()">Annulla round</button>`;return h+'</div>';}
+function renderRRActions(){const allDone=T.rounds.every(r=>r.pairings.filter(m=>!m.rest).every(m=>m.p1wins!==null));let h='<div class="card" style="padding:14px;">';const act=getActivePlayers();
+  if(act.length>2){h+=`<div class="mb"><select id="dropSel"><option value="">Ritira giocatore...</option>${act.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div><button class="btn btn-danger btn-sm mb" onclick="dropPlayer()">Ritira dal torneo</button>`;}
+  if(allDone)h+='<button class="btn btn-primary" onclick="endTournament()">Termina torneo</button>';
+  else{const next=T.rounds.findIndex(r=>r.pairings.some(m=>!m.rest&&m.p1wins===null));if(next>=0&&next!==viewingRound-1)h+=`<button class="btn btn-secondary" onclick="viewRound(${next+1})">Vai a Round ${next+1}</button>`;}
+  return h+'</div>';}
+
+function swissBtns(idx,m){const n1=T.players.find(p=>p.id===m.p1)?.name.split(' ')[0]||'?',n2=T.players.find(p=>p.id===m.p2)?.name.split(' ')[0]||'?';
+  const sc=[[2,0,0,'2–0'],[2,1,0,'2–1'],[1,1,1,'1–1'],[1,2,0,'1–2'],[0,2,0,'0–2']];
+  return `<div style="padding:4px 16px;font-size:0.72rem;color:var(--text-dim);text-align:center;font-weight:600;">${esc(n1)} — ${esc(n2)}</div><div class="match-score-btns">${sc.map(s=>`<button class="score-btn" onclick="setRes(${viewingRound-1},${idx},${s[0]},${s[1]},${s[2]})">${s[3]}</button>`).join('')}<button class="score-btn draw-btn" onclick="setRes(${viewingRound-1},${idx},0,0,3)" title="Pareggio intenzionale">ID</button></div>`;}
+function rrBtns(idx,m){const n1=T.players.find(p=>p.id===m.p1)?.name.split(' ')[0]||'?',n2=T.players.find(p=>p.id===m.p2)?.name.split(' ')[0]||'?';
+  return `<div class="match-score-btns"><button class="score-btn win-btn" onclick="setRes(${viewingRound-1},${idx},1,0,0)">${esc(n1)}</button><button class="score-btn win-btn" onclick="setRes(${viewingRound-1},${idx},0,1,0)">${esc(n2)}</button></div>`;}
+
+function fmtRes(m){if(m.bye)return'BYE';if(m.rest)return'Riposo';if(m.p1wins==null)return'—';if(m.forfeit){const w=m.p1wins>m.p2wins?T.players.find(p=>p.id===m.p1):T.players.find(p=>p.id===m.p2);return`${w?w.name.split(' ')[0]:'?'} (forfeit)`;}if(T.mode==='roundrobin'){const w=m.p1wins>m.p2wins?T.players.find(p=>p.id===m.p1):T.players.find(p=>p.id===m.p2);return`${w?w.name.split(' ')[0]:'?'} vince`;}if(m.p1wins===0&&m.p2wins===0)return'ID (patta)';return`${m.p1wins} – ${m.p2wins}${m.draws&&m.p1wins!==0?' (patta)':''}`;}
+
+function setRes(ri,mi,w1,w2,d){const m=T.rounds[ri].pairings[mi];m.p1wins=w1;m.p2wins=w2;m.draws=d;lastScoredMatch=mi;vibrate(50);renderRound();renderStandings();save();toast('Risultato salvato');}
+function editMatch(ri,mi){showModal('Modificare risultato?','Il risultato verrà resettato.',()=>{const m=T.rounds[ri].pairings[mi];m.p1wins=null;m.p2wins=null;m.draws=0;m.forfeit=false;renderRound();renderStandings();save();});}
+
+function confirmUndo(){showModal('Annullare il round?','Tornerai al round precedente.',undoRound);}
+function undoRound(){if(T.currentRound<=1)return;T.rounds.pop();T.currentRound--;T.ended=false;if(T.rounds.length)T.rounds[T.rounds.length-1].locked=false;T.players.forEach(p=>{if(p.droppedAtRound&&p.droppedAtRound>T.currentRound){p.dropped=false;p.droppedAtRound=null;}});viewingRound=T.currentRound;updateStatus();renderRound();renderStandings();save();toast('Round annullato');}
+function endTournament(){T.ended=true;TM.running=false;clearInterval(TM.interval);T.rounds.forEach(r=>r.locked=true);updateStatus();renderRound();renderStandings();save();switchTab('standings');toast('Torneo concluso!');}
+
+// ── STANDINGS ──
+function renderStandings(){
+  const isRR=T.mode==='roundrobin',st=isRR?getRRStandings():getSwissStandings();let h='';
+  if(T.ended){const w=st[0];if(w)h+=`<div class="card text-center" style="border-color:var(--accent);border-width:2px;"><div style="font-size:2.2rem;margin-bottom:6px;">🏆</div><div style="font-family:'Fraunces',serif;font-weight:900;font-size:1.3rem;color:var(--accent-dark);">${esc(w.name)}</div><div class="text-sm text-dim mt" style="font-weight:500;">Campione del torneo</div></div>`;}
+  if(isRR){
+    h+=`<div class="card" style="overflow-x:auto;"><div class="card-title">Classifica${T.ended?' finale':''} <span class="mode-badge rr">BO1</span></div><table class="standings-table"><thead><tr><th scope="col">#</th><th scope="col">Giocatore</th><th scope="col">W-L</th><th scope="col">Vit.</th></tr></thead><tbody>
+      ${st.map((p,i)=>`<tr onclick="togglePlayer(${p.id})"><td class="standings-rank">${i+1}</td><td class="standings-name">${esc(p.name)}${p.dropped?' ✗':''}</td><td class="standings-record">${p.record.wins}-${p.record.losses}</td><td>${p.wins}</td></tr>${expandedPlayer===p.id?`<tr><td colspan="4" style="padding:0;">${renderDetail(p.id)}</td></tr>`:''}`).join('')}
+      </tbody></table></div>`;
+    h+=`<div class="card"><div class="card-title">Legenda</div><div class="text-sm text-dim" style="line-height:1.7;font-weight:500;"><b>Vit.</b> — Vittorie · <b>Spareggio</b> — Scontro diretto</div></div>`;
+  } else {
+    h+=`<div class="card" style="overflow-x:auto;"><div class="card-title">Classifica${T.ended?' finale':''} <span class="mode-badge swiss">Swiss</span></div><table class="standings-table"><thead><tr><th scope="col">#</th><th scope="col">Giocatore</th><th scope="col">W-L-D</th><th scope="col">Pts</th><th scope="col">OMW%</th><th scope="col">GW%</th><th scope="col">OGW%</th></tr></thead><tbody>
+      ${st.map((p,i)=>`<tr onclick="togglePlayer(${p.id})" class="${p.dropped?'dropped':''}"><td class="standings-rank">${i+1}</td><td class="standings-name">${esc(p.name)}${p.dropped?' ✗':''}</td><td class="standings-record">${p.record.wins}-${p.record.losses}-${p.record.draws}</td><td>${p.mp}</td><td>${(p.omw*100).toFixed(1)}%</td><td>${(p.gwp*100).toFixed(1)}%</td><td>${(p.ogw*100).toFixed(1)}%</td></tr>${expandedPlayer===p.id?`<tr><td colspan="7" style="padding:0;">${renderDetail(p.id)}</td></tr>`:''}`).join('')}
+      </tbody></table></div>`;
+    h+=`<div class="card"><div class="card-title">Legenda</div><div class="text-sm text-dim" style="line-height:1.7;font-weight:500;"><b>Pts</b> — Match Points (3W, 1D) · <b>OMW%</b> — Opp Match Win% (min 33%) · <b>GW%</b> — Game Win% (min 33%) · <b>OGW%</b> — Opp Game Win% (min 33%)</div></div>`;
+  }
+  if(T.started)h+=`<button class="share-btn" onclick="copyStandings()">📋 Copia classifica</button>`;
+  h+=`<button class="btn btn-secondary mt" onclick="confirmReset()">Nuovo torneo</button>`;
+  $id('standingsContent').innerHTML=h;
+}
+function togglePlayer(pid){expandedPlayer=expandedPlayer===pid?null:pid;renderStandings();}
+function renderDetail(pid){const ms=getPlayerMatches(pid);if(!ms.length)return'<div class="player-detail"><div class="text-sm text-dim">Nessun match</div></div>';return`<div class="player-detail">${ms.map(m=>{const c=m.result==='W'?'var(--green)':m.result==='L'?'var(--red)':'var(--text-dim)';return`<div class="player-detail-match"><span>R${m.round} vs ${esc(m.opp)}</span><span style="color:${c};font-weight:700;">${m.score}</span></div>`;}).join('')}</div>`;}
+function copyStandings(){const isRR=T.mode==='roundrobin',st=isRR?getRRStandings():getSwissStandings();let t=`${T.ended?'🏆 CLASSIFICA FINALE':'📊 Classifica'}\n${isRR?'Round Robin BO1':'Swiss'} · ${T.players.length} giocatori\n${'─'.repeat(26)}\n`;st.forEach((p,i)=>{const m=i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`;t+=isRR?`${m} ${p.name} — ${p.record.wins}W ${p.record.losses}L\n`:`${m} ${p.name} — ${p.record.wins}W ${p.record.losses}L ${p.record.draws}D (${p.mp}pts)\n`;});navigator.clipboard.writeText(t).then(()=>toast('Classifica copiata!')).catch(()=>{const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);toast('Classifica copiata!');});}
+function confirmReset(){showModal('Nuovo torneo?','Tutti i dati verranno persi.',()=>{localStorage.removeItem('mtg-t');location.reload();});}
+
+// ── NAV + SWIPE ──
+function switchTab(tab){$qsa('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$qsa('.screen').forEach(s=>s.classList.toggle('active',s.id===`screen-${tab}`));if(tab==='round'){if(!T.mode||T.mode==='swiss')viewingRound=T.currentRound||1;renderRound();}if(tab==='standings')renderStandings();if(tab==='draft')renderSeating();}
+$qsa('.nav-btn').forEach(btn=>btn.addEventListener('click',()=>{const t=btn.dataset.tab;if(t==='setup'){switchTab(t);return;}if(t==='draft'&&T.players.length<4){toast('Servono almeno 4 giocatori');return;}if((t==='round'||t==='standings')&&!T.started){toast('Inizia prima il torneo');return;}switchTab(t);}));
+function updateStatus(){const bar=$id('statusBar'),sub=$id('headerSub');if(!T.started){bar.classList.add('hidden');sub.textContent='Nuovo torneo';return;}bar.classList.remove('hidden');const ml=T.mode==='roundrobin'?'Round Robin BO1':'Swiss';if(T.ended){bar.className='status status-ended';bar.textContent=`Concluso · ${ml} · ${T.players.length} giocatori`;sub.textContent='Torneo concluso';}else{bar.className='status status-active';const done=T.rounds.filter(r=>r.pairings.filter(m=>!m.rest).every(m=>m.p1wins!==null)).length;bar.textContent=`${ml} · ${done}/${T.totalRounds} round`;sub.textContent=`${ml} · Round ${viewingRound}`;}}
+
+let sx=0,sy=0;
+document.addEventListener('touchstart',e=>{if(!e.target.closest('.swipe-area'))return;sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
+document.addEventListener('touchend',e=>{if(!e.target.closest('.swipe-area'))return;const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5){if(dx<0)viewRound(viewingRound+1);else viewRound(viewingRound-1);}},{passive:true});
+
+// ── RESTORE ──
+(function(){
+  const timerWasRunning = load();
+  if (!T.started && T.players.length === 0) return;
+  renderPlayerList();
+  if (T.draftOrder.length) renderSeating();
+  if (T.started) {
+    $id('screen-setup').querySelectorAll('input, button').forEach(el => el.disabled = true);
+    $id('startBtn').classList.add('hidden'); $id('reshuffleBtn').classList.add('hidden');
+    updateStatus();
+    renderRound(); renderStandings();
+    if (timerWasRunning) startTimer();
+    if (T.ended) switchTab('standings'); else switchTab('round');
+  } else if (T.players.length >= 4 && T.draftOrder.length) {
+    switchTab('draft');
+  }
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js');
+}
+</script>
+</body>
+</html>
