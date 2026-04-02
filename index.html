@@ -218,7 +218,7 @@
 
   /* ── Draft visual ── */
   .draft-table { position: relative; margin: 16px auto; overflow: visible; }
-  .draft-seat { position: absolute; width: 90px; text-align: center; transform: translate(-50%, -50%); }
+  .draft-seat { position: absolute; width: 80px; text-align: center; transform: translate(-50%, -50%); }
   .draft-seat-num {
     width: 32px; height: 32px; border-radius: 50%;
     background: var(--accent); color: #fff;
@@ -634,7 +634,11 @@ function moveSeat(i, d) { const j = i + d; if (j < 0 || j >= T.draftOrder.length
 function reshuffleDraft() { T.draftOrder = shuffle(T.players.map(p => p.id)); renderSeating(); save(); toast('Posizioni rimescolate'); }
 function renderDraftVisual() {
   const ids = T.draftOrder, n = ids.length;
-  const radius = Math.min(120, 90 + n * 3), size = (radius + 75) * 2, cx = size / 2, cy = size / 2;
+  const containerW = $id('draftVisual').clientWidth || 300;
+  const seatW = 80;
+  const maxRadius = Math.floor((containerW - seatW) / 2) - 4;
+  const radius = Math.min(maxRadius, Math.min(120, 90 + n * 3));
+  const size = (radius + seatW / 2 + 4) * 2, cx = size / 2, cy = size / 2;
   let h = `<div class="draft-table" style="width:${size}px;height:${size}px;"><div class="draft-table-center">Tavolo</div>`;
   ids.forEach((id, i) => {
     const a = (2 * Math.PI * i / n) - Math.PI / 2, p = T.players.find(p => p.id === id);
@@ -828,9 +832,9 @@ function renderStandings(){
       </tbody></table></div>`;
     h+=`<div class="card"><div class="card-title">Legenda</div><div class="text-sm text-dim" style="line-height:1.7;font-weight:500;"><b>Vit.</b> — Vittorie · <b>Spareggio</b> — Scontro diretto</div></div>`;
   } else {
-    h+=`<div class="card" style="overflow-x:auto;"><div class="card-title">Classifica${T.ended?' finale':''} <span class="mode-badge swiss">Swiss</span></div><table class="standings-table swiss-table"><thead><tr><th scope="col">#</th><th scope="col">Giocatore</th><th scope="col">W-L-D</th><th scope="col">Pts</th><th scope="col">OMW%</th><th scope="col">GW%</th><th scope="col">OGW%</th></tr></thead><tbody>
+    h+=`<div class="card"><div class="card-title">Classifica${T.ended?' finale':''} <span class="mode-badge swiss">Swiss</span></div><div style="overflow-x:auto;margin:0 -4px;padding:0 4px;"><table class="standings-table swiss-table"><thead><tr><th scope="col">#</th><th scope="col">Giocatore</th><th scope="col">W-L-D</th><th scope="col">Pts</th><th scope="col">OMW%</th><th scope="col">GW%</th><th scope="col">OGW%</th></tr></thead><tbody>
       ${st.map((p,i)=>`<tr onclick="togglePlayer(${p.id})" class="${p.dropped?'dropped':''}"><td class="standings-rank">${i+1}</td><td class="standings-name">${esc(p.name)}${p.dropped?' ✗':''}</td><td class="standings-record">${p.record.wins}-${p.record.losses}-${p.record.draws}</td><td>${p.mp}</td><td>${(p.omw*100).toFixed(0)}</td><td>${(p.gwp*100).toFixed(0)}</td><td>${(p.ogw*100).toFixed(0)}</td></tr>${expandedPlayer===p.id?`<tr><td colspan="7" style="padding:0;">${renderDetail(p.id)}</td></tr>`:''}`).join('')}
-      </tbody></table></div>`;
+      </tbody></table></div></div>`;
     h+=`<div class="card"><div class="card-title">Legenda</div><div class="text-sm text-dim" style="line-height:1.7;font-weight:500;"><b>Pts</b> — Match Points (3W, 1D) · <b>OMW%</b> — Opp Match Win% (min 33%) · <b>GW%</b> — Game Win% (min 33%) · <b>OGW%</b> — Opp Game Win% (min 33%)</div></div>`;
   }
   if(T.started)h+=`<button class="share-btn" onclick="copyStandings()">📋 Copia classifica</button>`;
