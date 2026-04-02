@@ -350,7 +350,7 @@
     text-transform: uppercase; letter-spacing: 0.8px; white-space: nowrap;
   }
   .standings-table td {
-    padding: 10px 5px; border-bottom: 1px solid var(--border); vertical-align: middle;
+    padding: 10px 5px; border-bottom: 1px solid var(--border); vertical-align: middle; white-space: nowrap;
   }
   .standings-table.swiss-table { font-size: 0.75rem; }
   .standings-table.swiss-table th { padding: 8px 4px; font-size: 0.62rem; letter-spacing: 0.5px; }
@@ -827,9 +827,9 @@ function renderStandings(){
   const isRR=T.mode==='roundrobin',st=isRR?getRRStandings():getSwissStandings();let h='';
   if(T.ended){const w=st[0];if(w)h+=`<div class="card text-center" style="border-color:var(--accent);border-width:2px;"><div style="font-size:2.2rem;margin-bottom:6px;">🏆</div><div style="font-family:'Fraunces',serif;font-weight:900;font-size:1.3rem;color:var(--accent-dark);">${esc(w.name)}</div><div class="text-sm text-dim mt" style="font-weight:500;">Campione del torneo</div></div>`;}
   if(isRR){
-    h+=`<div class="card" style="overflow-x:auto;"><div class="card-title">Classifica${T.ended?' finale':''} <span class="mode-badge rr">BO1</span></div><table class="standings-table"><thead><tr><th scope="col">#</th><th scope="col">Giocatore</th><th scope="col">W-L</th><th scope="col">Vit.</th></tr></thead><tbody>
+    h+=`<div class="card"><div class="card-title">Classifica${T.ended?' finale':''} <span class="mode-badge rr">BO1</span></div><div style="overflow-x:auto;"><table class="standings-table"><thead><tr><th scope="col">#</th><th scope="col">Giocatore</th><th scope="col">W-L</th><th scope="col">Vit.</th></tr></thead><tbody>
       ${st.map((p,i)=>`<tr onclick="togglePlayer(${p.id})"><td class="standings-rank">${i+1}</td><td class="standings-name">${esc(p.name)}${p.dropped?' ✗':''}</td><td class="standings-record">${p.record.wins}-${p.record.losses}</td><td>${p.wins}</td></tr>${expandedPlayer===p.id?`<tr><td colspan="4" style="padding:0;">${renderDetail(p.id)}</td></tr>`:''}`).join('')}
-      </tbody></table></div>`;
+      </tbody></table></div></div>`;
     h+=`<div class="card"><div class="card-title">Legenda</div><div class="text-sm text-dim" style="line-height:1.7;font-weight:500;"><b>Vit.</b> — Vittorie · <b>Spareggio</b> — Scontro diretto</div></div>`;
   } else {
     h+=`<div class="card"><div class="card-title">Classifica${T.ended?' finale':''} <span class="mode-badge swiss">Swiss</span></div><div style="overflow-x:auto;margin:0 -4px;padding:0 4px;"><table class="standings-table swiss-table"><thead><tr><th scope="col">#</th><th scope="col">Giocatore</th><th scope="col">W-L-D</th><th scope="col">Pts</th><th scope="col">OMW%</th><th scope="col">GW%</th><th scope="col">OGW%</th></tr></thead><tbody>
