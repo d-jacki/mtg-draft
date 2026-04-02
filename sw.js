@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mtg-draft-v2';
+const CACHE_NAME = 'mtg-draft-v3';
 const ASSETS = [
   './',
   './index.html',

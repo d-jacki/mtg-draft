@@ -217,8 +217,8 @@
   .seat-arrow-btn:disabled { opacity: 0.15; cursor: default; }
 
   /* ── Draft visual ── */
-  .draft-table { position: relative; margin: 16px auto; }
-  .draft-seat { position: absolute; width: 80px; text-align: center; transform: translate(-50%, -50%); }
+  .draft-table { position: relative; margin: 16px auto; overflow: visible; }
+  .draft-seat { position: absolute; width: 90px; text-align: center; transform: translate(-50%, -50%); }
   .draft-seat-num {
     width: 32px; height: 32px; border-radius: 50%;
     background: var(--accent); color: #fff;
@@ -523,7 +523,7 @@
     <div class="text-xs text-dim mb">Usa le frecce per spostare i giocatori. Al round 1 si scontrano i lati opposti.</div>
     <div id="seatList"></div>
   </div>
-  <div class="card">
+  <div class="card" style="overflow:visible;">
     <div class="card-title">Vista tavolo</div>
     <div id="draftVisual"></div>
   </div>
@@ -829,7 +829,7 @@ function renderStandings(){
     h+=`<div class="card"><div class="card-title">Legenda</div><div class="text-sm text-dim" style="line-height:1.7;font-weight:500;"><b>Vit.</b> — Vittorie · <b>Spareggio</b> — Scontro diretto</div></div>`;
   } else {
     h+=`<div class="card" style="overflow-x:auto;"><div class="card-title">Classifica${T.ended?' finale':''} <span class="mode-badge swiss">Swiss</span></div><table class="standings-table swiss-table"><thead><tr><th scope="col">#</th><th scope="col">Giocatore</th><th scope="col">W-L-D</th><th scope="col">Pts</th><th scope="col">OMW%</th><th scope="col">GW%</th><th scope="col">OGW%</th></tr></thead><tbody>
-      ${st.map((p,i)=>`<tr onclick="togglePlayer(${p.id})" class="${p.dropped?'dropped':''}"><td class="standings-rank">${i+1}</td><td class="standings-name">${esc(p.name)}${p.dropped?' ✗':''}</td><td class="standings-record">${p.record.wins}-${p.record.losses}-${p.record.draws}</td><td>${p.mp}</td><td>${(p.omw*100).toFixed(1)}</td><td>${(p.gwp*100).toFixed(1)}</td><td>${(p.ogw*100).toFixed(1)}</td></tr>${expandedPlayer===p.id?`<tr><td colspan="7" style="padding:0;">${renderDetail(p.id)}</td></tr>`:''}`).join('')}
+      ${st.map((p,i)=>`<tr onclick="togglePlayer(${p.id})" class="${p.dropped?'dropped':''}"><td class="standings-rank">${i+1}</td><td class="standings-name">${esc(p.name)}${p.dropped?' ✗':''}</td><td class="standings-record">${p.record.wins}-${p.record.losses}-${p.record.draws}</td><td>${p.mp}</td><td>${(p.omw*100).toFixed(0)}</td><td>${(p.gwp*100).toFixed(0)}</td><td>${(p.ogw*100).toFixed(0)}</td></tr>${expandedPlayer===p.id?`<tr><td colspan="7" style="padding:0;">${renderDetail(p.id)}</td></tr>`:''}`).join('')}
       </tbody></table></div>`;
     h+=`<div class="card"><div class="card-title">Legenda</div><div class="text-sm text-dim" style="line-height:1.7;font-weight:500;"><b>Pts</b> — Match Points (3W, 1D) · <b>OMW%</b> — Opp Match Win% (min 33%) · <b>GW%</b> — Game Win% (min 33%) · <b>OGW%</b> — Opp Game Win% (min 33%)</div></div>`;
   }
