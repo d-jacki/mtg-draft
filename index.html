@@ -344,14 +344,17 @@
   /* ── Standings ── */
   .standings-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
   .standings-table th {
-    text-align: left; padding: 10px 7px;
+    text-align: left; padding: 10px 5px;
     border-bottom: 2px solid var(--accent);
     color: var(--accent-dark); font-size: 0.68rem; font-weight: 800;
     text-transform: uppercase; letter-spacing: 0.8px; white-space: nowrap;
   }
   .standings-table td {
-    padding: 12px 7px; border-bottom: 1px solid var(--border); vertical-align: middle;
+    padding: 10px 5px; border-bottom: 1px solid var(--border); vertical-align: middle;
   }
+  .standings-table.swiss-table { font-size: 0.75rem; }
+  .standings-table.swiss-table th { padding: 8px 4px; font-size: 0.62rem; letter-spacing: 0.5px; }
+  .standings-table.swiss-table td { padding: 9px 4px; }
   .standings-table tbody tr {
     transition: background 0.15s; cursor: pointer;
   }
@@ -631,7 +634,7 @@ function moveSeat(i, d) { const j = i + d; if (j < 0 || j >= T.draftOrder.length
 function reshuffleDraft() { T.draftOrder = shuffle(T.players.map(p => p.id)); renderSeating(); save(); toast('Posizioni rimescolate'); }
 function renderDraftVisual() {
   const ids = T.draftOrder, n = ids.length;
-  const radius = Math.min(120, 90 + n * 3), size = (radius + 55) * 2, cx = size / 2, cy = size / 2;
+  const radius = Math.min(120, 90 + n * 3), size = (radius + 75) * 2, cx = size / 2, cy = size / 2;
   let h = `<div class="draft-table" style="width:${size}px;height:${size}px;"><div class="draft-table-center">Tavolo</div>`;
   ids.forEach((id, i) => {
     const a = (2 * Math.PI * i / n) - Math.PI / 2, p = T.players.find(p => p.id === id);
@@ -825,8 +828,8 @@ function renderStandings(){
       </tbody></table></div>`;
     h+=`<div class="card"><div class="card-title">Legenda</div><div class="text-sm text-dim" style="line-height:1.7;font-weight:500;"><b>Vit.</b> — Vittorie · <b>Spareggio</b> — Scontro diretto</div></div>`;
   } else {
-    h+=`<div class="card" style="overflow-x:auto;"><div class="card-title">Classifica${T.ended?' finale':''} <span class="mode-badge swiss">Swiss</span></div><table class="standings-table"><thead><tr><th scope="col">#</th><th scope="col">Giocatore</th><th scope="col">W-L-D</th><th scope="col">Pts</th><th scope="col">OMW%</th><th scope="col">GW%</th><th scope="col">OGW%</th></tr></thead><tbody>
-      ${st.map((p,i)=>`<tr onclick="togglePlayer(${p.id})" class="${p.dropped?'dropped':''}"><td class="standings-rank">${i+1}</td><td class="standings-name">${esc(p.name)}${p.dropped?' ✗':''}</td><td class="standings-record">${p.record.wins}-${p.record.losses}-${p.record.draws}</td><td>${p.mp}</td><td>${(p.omw*100).toFixed(1)}%</td><td>${(p.gwp*100).toFixed(1)}%</td><td>${(p.ogw*100).toFixed(1)}%</td></tr>${expandedPlayer===p.id?`<tr><td colspan="7" style="padding:0;">${renderDetail(p.id)}</td></tr>`:''}`).join('')}
+    h+=`<div class="card" style="overflow-x:auto;"><div class="card-title">Classifica${T.ended?' finale':''} <span class="mode-badge swiss">Swiss</span></div><table class="standings-table swiss-table"><thead><tr><th scope="col">#</th><th scope="col">Giocatore</th><th scope="col">W-L-D</th><th scope="col">Pts</th><th scope="col">OMW%</th><th scope="col">GW%</th><th scope="col">OGW%</th></tr></thead><tbody>
+      ${st.map((p,i)=>`<tr onclick="togglePlayer(${p.id})" class="${p.dropped?'dropped':''}"><td class="standings-rank">${i+1}</td><td class="standings-name">${esc(p.name)}${p.dropped?' ✗':''}</td><td class="standings-record">${p.record.wins}-${p.record.losses}-${p.record.draws}</td><td>${p.mp}</td><td>${(p.omw*100).toFixed(1)}</td><td>${(p.gwp*100).toFixed(1)}</td><td>${(p.ogw*100).toFixed(1)}</td></tr>${expandedPlayer===p.id?`<tr><td colspan="7" style="padding:0;">${renderDetail(p.id)}</td></tr>`:''}`).join('')}
       </tbody></table></div>`;
     h+=`<div class="card"><div class="card-title">Legenda</div><div class="text-sm text-dim" style="line-height:1.7;font-weight:500;"><b>Pts</b> — Match Points (3W, 1D) · <b>OMW%</b> — Opp Match Win% (min 33%) · <b>GW%</b> — Game Win% (min 33%) · <b>OGW%</b> — Opp Game Win% (min 33%)</div></div>`;
   }
