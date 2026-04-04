@@ -600,8 +600,9 @@ $id('modal').addEventListener('click', e => { if (e.target === $id('modal')) clo
 // ── SETUP ──
 $id('playerInput').addEventListener('keydown', e => { if (e.key === 'Enter') addPlayer(); });
 function addPlayer() {
-  const inp = $id('playerInput'), name = inp.value.trim();
-  if (!name) return;
+  const inp = $id('playerInput'), raw = inp.value.trim();
+  if (!raw) return;
+  const name = raw.toLowerCase()==='ferro'?'Ferro il Ludopatico':raw;
   if (T.players.length >= 16) return toast('Massimo 16 giocatori');
   if (T.players.some(p => p.name.toLowerCase() === name.toLowerCase())) return toast('Nome già presente');
   T.players.push({ id: ++playerIdCounter, name, dropped: false, droppedAtRound: null });
