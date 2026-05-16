@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MTG Draft Swiss</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#3d6b8e">
@@ -26,7 +26,7 @@
 
     --text: #2c2520;
     --text-mid: #6b6058;
-    --text-dim: #9c9388;
+    --text-dim: #756a5f;
     --text-bright: #1a1510;
 
     --accent: #3d6b8e;
@@ -47,6 +47,7 @@
     --radius-xs: 6px;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  button, select, input { touch-action: manipulation; }
   body {
     font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
     background: var(--bg);
@@ -155,7 +156,7 @@
   .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
   .btn-danger { background: var(--red); color: #fff; }
   .btn-secondary { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); }
-  .btn-sm { padding: 8px 14px; font-size: 0.82rem; width: auto; border-radius: var(--radius-xs); }
+  .btn-sm { padding: 8px 14px; font-size: 0.82rem; width: auto; border-radius: var(--radius-xs); min-height: 44px; }
   .btn-row { display: flex; gap: 8px; margin-top: 12px; }
   .btn-row .btn { flex: 1; }
 
@@ -185,9 +186,12 @@
   .player-name { flex: 1; font-weight: 600; font-size: 0.95rem; }
   .player-remove {
     background: var(--red-light); border: none; color: var(--red);
-    font-size: 1rem; cursor: pointer; padding: 4px 10px; line-height: 1;
+    font-size: 1rem; cursor: pointer; line-height: 1;
     border-radius: var(--radius-xs); font-weight: 700;
     transition: all 0.15s;
+    min-width: 44px; min-height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0 12px;
   }
   .player-remove:active { background: var(--red); color: #fff; }
 
@@ -208,8 +212,8 @@
   .seat-arrows { display: flex; flex-direction: column; gap: 3px; }
   .seat-arrow-btn {
     background: var(--bg-input); border: 1px solid var(--border);
-    color: var(--text-mid); width: 34px; height: 28px;
-    border-radius: var(--radius-xs); cursor: pointer; font-size: 0.72rem;
+    color: var(--text-mid); min-width: 44px; min-height: 44px;
+    border-radius: var(--radius-xs); cursor: pointer; font-size: 0.85rem;
     display: flex; align-items: center; justify-content: center;
     font-weight: 700; transition: all 0.15s;
   }
@@ -504,7 +508,7 @@
   <div class="card">
     <div class="card-title">Giocatori</div>
     <div style="display:flex;gap:8px;">
-      <input type="text" id="playerInput" placeholder="Nome giocatore" autocomplete="off" />
+      <input type="text" id="playerInput" placeholder="Nome giocatore" autocomplete="off" aria-label="Nome giocatore" />
       <button class="btn btn-primary btn-sm" style="width:auto;min-width:56px;" onclick="addPlayer()" aria-label="Aggiungi giocatore">+</button>
     </div>
     <div id="playerList" class="mt"></div>
@@ -670,13 +674,13 @@ function handleStart() {
   const opts = Array.from({length: maxR - 1}, (_, i) => i + 2).map(r => `<option value="${r}"${r===defR?' selected':''}>${r} round</option>`).join('');
   if (n % 2 === 1) {
     showModalCustom('Formato torneo', `Siete in ${n} (dispari).`,
-      `<div class="mb"><label class="text-sm" style="display:block;margin-bottom:6px;font-weight:600;color:var(--text-mid);">Round (Swiss):</label><select id="roundCountSel">${opts}</select></div>
+      `<div class="mb"><label for="roundCountSel" class="text-sm" style="display:block;margin-bottom:6px;font-weight:600;color:var(--text-mid);">Round (Swiss):</label><select id="roundCountSel">${opts}</select></div>
       <button class="mode-choice-btn" onclick="closeModal(); startWithMode('swiss', parseInt($id('roundCountSel').value))"><strong>Swiss con Bye</strong><span class="desc">Cross-table R1, un bye a turno</span></button>
       <button class="mode-choice-btn" onclick="closeModal(); startWithMode('roundrobin')"><strong>Tutti contro tutti BO1</strong><span class="desc">${n} round, ${n - 1} partite a testa</span></button>
       <button class="btn btn-secondary btn-sm mt" onclick="closeModal()">Annulla</button>`);
   } else {
     showModalCustom('Configurazione torneo', `${n} giocatori — formato Swiss.`,
-      `<div class="mb"><label class="text-sm" style="display:block;margin-bottom:6px;font-weight:600;color:var(--text-mid);">Numero round:</label><select id="roundCountSel">${opts}</select></div>
+      `<div class="mb"><label for="roundCountSel" class="text-sm" style="display:block;margin-bottom:6px;font-weight:600;color:var(--text-mid);">Numero round:</label><select id="roundCountSel">${opts}</select></div>
       <button class="btn btn-primary" onclick="closeModal(); startWithMode('swiss', parseInt($id('roundCountSel').value))">Inizia torneo</button>
       <button class="btn btn-secondary btn-sm mt" onclick="closeModal()">Annulla</button>`);
   }
@@ -800,11 +804,11 @@ function renderRound(){
 }
 
 function renderSwissActions(round){const allDone=round.pairings.every(m=>m.p1wins!==null);let h='<div class="card" style="padding:14px;">';const act=getActivePlayers();
-  if(act.length>2){h+=`<div class="mb"><select id="dropSel"><option value="">Ritira giocatore...</option>${act.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div><button class="btn btn-danger btn-sm mb" onclick="dropPlayer()">Ritira dal torneo</button>`;}
+  if(act.length>2){h+=`<div class="mb"><select id="dropSel" aria-label="Seleziona giocatore da ritirare"><option value="">Ritira giocatore...</option>${act.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div><button class="btn btn-danger btn-sm mb" onclick="dropPlayer()">Ritira dal torneo</button>`;}
   if(allDone){h+=T.currentRound<T.totalRounds?'<button class="btn btn-primary" onclick="nextRound()">Round successivo →</button>':'<button class="btn btn-primary" onclick="endTournament()">Termina torneo</button>';}
   if(T.currentRound>1)h+=`<button class="btn btn-secondary mt" onclick="confirmUndo()">Annulla round</button>`;return h+'</div>';}
 function renderRRActions(){const allDone=T.rounds.every(r=>r.pairings.filter(m=>!m.rest).every(m=>m.p1wins!==null));let h='<div class="card" style="padding:14px;">';const act=getActivePlayers();
-  if(act.length>2){h+=`<div class="mb"><select id="dropSel"><option value="">Ritira giocatore...</option>${act.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div><button class="btn btn-danger btn-sm mb" onclick="dropPlayer()">Ritira dal torneo</button>`;}
+  if(act.length>2){h+=`<div class="mb"><select id="dropSel" aria-label="Seleziona giocatore da ritirare"><option value="">Ritira giocatore...</option>${act.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div><button class="btn btn-danger btn-sm mb" onclick="dropPlayer()">Ritira dal torneo</button>`;}
   if(allDone)h+='<button class="btn btn-primary" onclick="endTournament()">Termina torneo</button>';
   else{const next=T.rounds.findIndex(r=>r.pairings.some(m=>!m.rest&&m.p1wins===null));if(next>=0&&next!==viewingRound-1)h+=`<button class="btn btn-secondary" onclick="viewRound(${next+1})">Vai a Round ${next+1}</button>`;}
   return h+'</div>';}
@@ -849,7 +853,7 @@ function copyStandings(){const isRR=T.mode==='roundrobin',st=getSwissStandings()
 function confirmReset(){showModal('Nuovo torneo?','Tutti i dati verranno persi.',()=>{localStorage.removeItem('mtg-t');location.reload();});}
 
 // ── NAV + SWIPE ──
-function switchTab(tab){$qsa('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$qsa('.screen').forEach(s=>s.classList.toggle('active',s.id===`screen-${tab}`));if(tab==='round'){if(!T.mode||T.mode==='swiss')viewingRound=T.currentRound||1;renderRound();}if(tab==='standings')renderStandings();if(tab==='draft')renderSeating();}
+function switchTab(tab){$qsa('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$qsa('.screen').forEach(s=>s.classList.toggle('active',s.id===`screen-${tab}`));if(tab==='round'){if(!T.mode||T.mode==='swiss')viewingRound=T.currentRound||1;renderRound();}if(tab==='standings')renderStandings();if(tab==='draft')renderSeating();window.scrollTo(0,0);}
 $qsa('.nav-btn').forEach(btn=>btn.addEventListener('click',()=>{const t=btn.dataset.tab;if(t==='setup'){switchTab(t);return;}if(t==='draft'&&T.players.length<4){toast('Servono almeno 4 giocatori');return;}if((t==='round'||t==='standings')&&!T.started){toast('Inizia prima il torneo');return;}switchTab(t);}));
 function updateStatus(){const bar=$id('statusBar'),sub=$id('headerSub');if(!T.started){bar.classList.add('hidden');sub.textContent='Nuovo torneo';return;}bar.classList.remove('hidden');const ml=T.mode==='roundrobin'?'Round Robin BO1':'Swiss';if(T.ended){bar.className='status status-ended';bar.textContent=`Concluso · ${ml} · ${T.players.length} giocatori`;sub.textContent='Torneo concluso';}else{bar.className='status status-active';const done=T.rounds.filter(r=>r.pairings.filter(m=>!m.rest).every(m=>m.p1wins!==null)).length;bar.textContent=`${ml} · ${done}/${T.totalRounds} round`;sub.textContent=`${ml} · Round ${viewingRound}`;}}
 
