@@ -562,7 +562,7 @@
 <script>
 const T = { players: [], draftOrder: [], rounds: [], started: false, ended: false, totalRounds: 0, currentRound: 0, mode: 'swiss' };
 let viewingRound = 1, playerIdCounter = 0, lastScoredMatch = -1, expandedPlayer = null;
-const TM = { running: false, seconds: 0, total: 50 * 60, interval: null };
+const TM = { running: false, seconds: 0, total: 50 * 60, interval: null, startedAt: null, firedExpired: false, firedOvertime: false };
 
 const $id = id => document.getElementById(id);
 const $qsa = (sel, el) => (el || document).querySelectorAll(sel);
@@ -574,7 +574,7 @@ const P = id => T.players.find(p => p.id === id);
 function save() {
   localStorage.setItem('mtg-t', JSON.stringify({
     T, viewingRound, playerIdCounter,
-    tm: { seconds: TM.seconds, running: TM.running, total: TM.total },
+    tm: { seconds: TM.seconds, running: TM.running, total: TM.total, firedExpired: TM.firedExpired, firedOvertime: TM.firedOvertime },
     savedAt: Date.now()
   }));
 }
@@ -587,6 +587,8 @@ function load() {
     playerIdCounter = d.playerIdCounter || 0;
     TM.total = d.tm?.total || 50 * 60;
     TM.seconds = d.tm?.seconds || 0;
+    TM.firedExpired = d.tm?.firedExpired || false;
+    TM.firedOvertime = d.tm?.firedOvertime || false;
     if (d.tm?.running && d.savedAt) TM.seconds += Math.floor((Date.now() - d.savedAt) / 1000);
     return d.tm?.running || false;
   } catch { return false; }
@@ -762,12 +764,12 @@ function dropPlayer(){const sel=$id('dropSel');if(!sel)return;const pid=parseInt
 // ── TIMER ──
 function renderTimer(){const rem=TM.total-TM.seconds;const min=Math.floor(Math.abs(rem)/60),sec=Math.abs(rem)%60;const sign=rem<0?'+':'';const warn=rem<=300?'warning':'';
 return `<div class="timer-bar"><div class="timer-label">Timer round</div><div class="timer-display ${warn}">${sign}${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}</div><div class="timer-btns">${TM.running?`<button class="btn btn-secondary btn-sm" onclick="pauseTimer()">Pausa</button>`:`<button class="btn btn-primary btn-sm" onclick="startTimer()">${TM.seconds>0?'Riprendi':'Avvia'}</button>`}<button class="btn btn-secondary btn-sm" onclick="resetTimer()">Reset</button></div></div>`;}
-function startTimer(){if(TM.running)return;TM.running=true;save();TM.interval=setInterval(()=>{TM.seconds++;const rem=TM.total-TM.seconds;const el=document.querySelector('.timer-display');if(el){const min=Math.floor(Math.abs(rem)/60),sec=Math.abs(rem)%60;el.textContent=`${rem<0?'+':''}${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;el.className='timer-display'+(rem<=300?' warning':'');}if(rem===0){vibrate([200,100,200,100,400]);toast('Tempo scaduto!');}if(rem===-300){vibrate([400,200,400]);toast('+5 turni extra scaduti!');}},1000);renderRound();}
-function pauseTimer(){TM.running=false;clearInterval(TM.interval);save();renderRound();}
-function resetTimer(){TM.running=false;clearInterval(TM.interval);TM.seconds=0;save();renderRound();}
+function startTimer(){if(TM.running)return;TM.running=true;TM.startedAt=Date.now()-TM.seconds*1000;save();TM.interval=setInterval(()=>{TM.seconds=Math.floor((Date.now()-TM.startedAt)/1000);const rem=TM.total-TM.seconds;const el=document.querySelector('.timer-display');if(el){const min=Math.floor(Math.abs(rem)/60),sec=Math.abs(rem)%60;el.textContent=`${rem<0?'+':''}${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;el.className='timer-display'+(rem<=300?' warning':'');}if(rem<=0&&!TM.firedExpired){TM.firedExpired=true;vibrate([200,100,200,100,400]);toast('Tempo scaduto!');save();}if(rem<=-300&&!TM.firedOvertime){TM.firedOvertime=true;vibrate([400,200,400]);toast('+5 turni extra scaduti!');save();}},1000);renderRound();}
+function pauseTimer(){if(TM.running&&TM.startedAt)TM.seconds=Math.floor((Date.now()-TM.startedAt)/1000);TM.running=false;TM.startedAt=null;clearInterval(TM.interval);save();renderRound();}
+function resetTimer(){TM.running=false;clearInterval(TM.interval);TM.seconds=0;TM.startedAt=null;TM.firedExpired=false;TM.firedOvertime=false;save();renderRound();}
 
 // ── ROUND ──
-function nextRound(){if(T.currentRound>=T.totalRounds){endTournament();return;}T.currentRound++;T.rounds.push({pairings:generatePairings(),locked:false});viewingRound=T.currentRound;TM.seconds=0;TM.running=false;clearInterval(TM.interval);renderRound();updateStatus();save();}
+function nextRound(){if(T.currentRound>=T.totalRounds){endTournament();return;}T.currentRound++;T.rounds.push({pairings:generatePairings(),locked:false});viewingRound=T.currentRound;TM.seconds=0;TM.running=false;TM.startedAt=null;TM.firedExpired=false;TM.firedOvertime=false;clearInterval(TM.interval);renderRound();updateStatus();save();}
 function viewRound(n){const max=T.mode==='roundrobin'?T.totalRounds:T.currentRound;if(n>=1&&n<=max){viewingRound=n;renderRound();}}
 
 function renderRound(){
