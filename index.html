@@ -550,7 +550,7 @@
 
 <!-- MODAL -->
 <div class="modal-overlay" id="modal">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalText">
     <h3 id="modalTitle"></h3>
     <p id="modalText"></p>
     <div id="modalBody"></div>
@@ -598,10 +598,23 @@ function load() {
   } catch { return false; }
 }
 window.addEventListener('beforeunload', e => { if (T.started && !T.ended) { e.preventDefault(); e.returnValue = ''; } });
-function showModal(t, txt, fn) { $id('modalTitle').textContent = t; $id('modalText').textContent = txt; $id('modalBody').innerHTML = ''; $id('modalButtons').classList.remove('hidden'); $id('modal').classList.add('active'); $id('modalConfirm').onclick = () => { closeModal(); fn(); }; }
-function showModalCustom(t, txt, h) { $id('modalTitle').textContent = t; $id('modalText').textContent = txt; $id('modalBody').innerHTML = h; $id('modalButtons').classList.add('hidden'); $id('modal').classList.add('active'); }
-function closeModal() { $id('modal').classList.remove('active'); }
+let _modalReturnFocus = null;
+function _focusableInModal(){return [...$id('modal').querySelectorAll('button,select,input,textarea,a[href],[tabindex]:not([tabindex="-1"])')].filter(el=>!el.disabled&&el.offsetParent!==null);}
+function _openModal(){_modalReturnFocus=document.activeElement;$id('modal').classList.add('active');setTimeout(()=>{const f=_focusableInModal();if(f.length)f[0].focus();},50);}
+function showModal(t, txt, fn) { $id('modalTitle').textContent = t; $id('modalText').textContent = txt; $id('modalBody').innerHTML = ''; $id('modalButtons').classList.remove('hidden'); $id('modalConfirm').onclick = () => { closeModal(); fn(); }; _openModal(); }
+function showModalCustom(t, txt, h) { $id('modalTitle').textContent = t; $id('modalText').textContent = txt; $id('modalBody').innerHTML = h; $id('modalButtons').classList.add('hidden'); _openModal(); }
+function closeModal() { $id('modal').classList.remove('active'); if(_modalReturnFocus&&typeof _modalReturnFocus.focus==='function'){try{_modalReturnFocus.focus();}catch(e){}} _modalReturnFocus=null; }
 $id('modal').addEventListener('click', e => { if (e.target === $id('modal')) closeModal(); });
+document.addEventListener('keydown', e => {
+  if (!$id('modal').classList.contains('active')) return;
+  if (e.key === 'Escape') { e.preventDefault(); closeModal(); return; }
+  if (e.key !== 'Tab') return;
+  const f = _focusableInModal();
+  if (!f.length) { e.preventDefault(); return; }
+  const first = f[0], last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
 
 // ── SETUP ──
 $id('playerInput').addEventListener('keydown', e => { if (e.key === 'Enter') addPlayer(); });
