@@ -46,6 +46,18 @@
 
 &#x20; outcome. Implemented as such.
 
+\- \*\*Scenario 3 expected value correction\*\*: actual GW%
+
+&#x20; with Option A is 46.67% (7/15), not 77.8% (7/9). The
+
+&#x20; original audit doc miscounted "games played" as rounds
+
+&#x20; rather than actual games per MTR Appendix C. The formula
+
+&#x20; in code is correct; only the expected test value was
+
+&#x20; wrong. Verified in PR #3.
+
 
 
 \## Phase 1 commits (PR #1)
