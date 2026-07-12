@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mtg-draft-v13';
+const CACHE_NAME = 'mtg-draft-v14';
 const ASSETS = [
   './',
   './index.html',
@@ -6,7 +6,9 @@ const ASSETS = [
   './icon.svg',
   './icon-192.png',
   './icon-512.png',
-  './icon-maskable-512.png'
+  './icon-maskable-512.png',
+  './fonts/plus-jakarta-sans.woff2',
+  './fonts/fraunces.woff2'
 ];
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 

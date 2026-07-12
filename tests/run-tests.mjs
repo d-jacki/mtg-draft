@@ -247,6 +247,30 @@ function reset(names, mode = 'swiss') {
   check('undo: drop del round annullato ripristinato', p4.dropped === false && p4.droppedAtRound === null);
 }
 
+// ── 13. startWithMode: timer configurabile + smoke test del rendering ──
+{
+  reset(['A', 'B', 'C', 'D']);
+  S.T.started = false; S.T.rounds = []; S.T.currentRound = 0;
+  app.startWithMode('swiss', 3, 40);
+  check('start: timer impostato a 40 minuti', S.TM.total === 40 * 60);
+  check('start: torneo avviato con R1 generato', S.T.started === true && S.T.rounds.length === 1 && S.T.currentRound === 1);
+  check('start: R1 draft cross-table (seat 1 vs seat 3)', S.T.rounds[0].pairings[0].p1 === 1 && S.T.rounds[0].pairings[0].p2 === 3);
+}
+
+// ── 14. standingsAt: delta posizioni senza effetti collaterali ──
+{
+  reset(['A', 'B', 'C', 'D']);
+  S.T.rounds = [
+    { pairings: [match(1, 2, 2, 0), match(3, 4, 2, 0)] }, // dopo R1: A,C in testa
+    { pairings: [match(1, 3, 0, 2), match(2, 4, 2, 0)] }, // R2: C batte A
+  ];
+  const prev = app.standingsAt(1);
+  check('standingsAt: classifica al round 1 (2 in testa a 3pt)', prev[0].mp === 3 && prev[1].mp === 3 && prev[2].mp === 0);
+  check('standingsAt: T.rounds ripristinato', S.T.rounds.length === 2);
+  const now = app.getSwissStandings();
+  check('standingsAt: dopo R2 C guida a 6pt', now[0].name === 'C' && now[0].mp === 6);
+}
+
 // ── esito ──
 console.log(`\n${passed} passati, ${failed} falliti`);
 process.exit(failed ? 1 : 0);
