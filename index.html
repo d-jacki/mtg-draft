@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="MTG Draft">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:wght@500;700;900&display=swap');
@@ -183,7 +183,7 @@
     font-size: 0.75rem; font-weight: 700; color: var(--text-dim);
     min-width: 22px; text-align: center;
   }
-  .player-name { flex: 1; font-weight: 600; font-size: 0.95rem; }
+  .player-name { flex: 1; font-weight: 600; font-size: 0.95rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .player-remove {
     background: var(--red-light); border: none; color: var(--red);
     font-size: 1rem; cursor: pointer; line-height: 1;
@@ -208,7 +208,7 @@
     font-weight: 800; font-size: 0.8rem;
     display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
-  .seat-name { flex: 1; font-weight: 600; font-size: 0.95rem; }
+  .seat-name { flex: 1; font-weight: 600; font-size: 0.95rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .seat-arrows { display: flex; flex-direction: column; gap: 3px; }
   .seat-arrow-btn {
     background: var(--bg-input); border: 1px solid var(--border);
@@ -531,7 +531,7 @@
   <div class="card">
     <div class="card-title">Giocatori</div>
     <div style="display:flex;gap:8px;">
-      <input type="text" id="playerInput" placeholder="Nome giocatore" autocomplete="off" aria-label="Nome giocatore" />
+      <input type="text" id="playerInput" placeholder="Nome giocatore" autocomplete="off" maxlength="40" aria-label="Nome giocatore" />
       <button class="btn btn-primary btn-sm" style="width:auto;min-width:56px;" onclick="addPlayer()" aria-label="Aggiungi giocatore">+</button>
     </div>
     <div id="playerList" class="mt"></div>
@@ -593,7 +593,7 @@ const TM = { running: false, seconds: 0, total: 50 * 60, interval: null, started
 
 const $id = id => document.getElementById(id);
 const $qsa = (sel, el) => (el || document).querySelectorAll(sel);
-function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function shuffle(a) { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function toast(m) { const t = $id('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2200); }
 function vibrate(ms) { if (navigator.vibrate) navigator.vibrate(ms); }
@@ -735,6 +735,7 @@ function startWithMode(mode, rounds) {
 // ── RR SCHEDULE ──
 function generateAllRRRounds() {
   const ids = T.draftOrder.slice(), n = ids.length, N = n + 1;
+  if (n % 2 === 0) throw new Error('Round robin BO1 supporta solo un numero dispari di giocatori');
   const rot = []; for (let i = 1; i < N; i++) rot.push(i);
   T.rounds = [];
   for (let r = 0; r < N - 1; r++) {
@@ -790,7 +791,7 @@ function havePlayed(a,b){for(const r of T.rounds)for(const m of r.pairings){if(m
 function hadBye(pid){for(const r of T.rounds)for(const m of r.pairings)if(m.bye&&m.p1===pid)return true;return false;}
 function generateDraftR1(){const o=T.draftOrder.filter(id=>{const p=T.players.find(p=>p.id===id);return p&&!p.dropped;});const n=o.length,half=Math.floor(n/2),pairs=[];for(let i=0;i<half;i++)pairs.push({p1:o[i],p2:o[i+half],p1wins:null,p2wins:null,draws:0,bye:false,rest:false,forfeit:false});if(n%2===1)pairs.push({p1:o[n-1],p2:null,p1wins:2,p2wins:0,draws:0,bye:true,rest:false,forfeit:false});return pairs;}
 function shuffleBrackets(players){const groups=new Map();players.forEach(p=>{const mp=matchPoints(p.id);if(!groups.has(mp))groups.set(mp,[]);groups.get(mp).push(p);});const brackets=[...groups.keys()].sort((a,b)=>b-a);const result=[];for(const mp of brackets){const g=groups.get(mp);for(let i=g.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[g[i],g[j]]=[g[j],g[i]];}result.push(...g);}return result;}
-function generateSwiss(){const active=getActivePlayers(),n=active.length;if(n<2)return[];const isLastRound=T.currentRound===T.totalRounds;const sorted=isLastRound?getSwissStandings().filter(p=>!p.dropped):shuffleBrackets(active);let bye=null,pool=sorted.map(p=>p.id);if(n%2===1){for(let i=pool.length-1;i>=0;i--){if(!hadBye(pool[i])){bye=pool[i];pool.splice(i,1);break;}}if(!bye)bye=pool.pop();}const pairs=pairPool(pool);if(!pairs){const fb=[];for(let i=0;i<pool.length-1;i+=2)fb.push({p1:pool[i],p2:pool[i+1],p1wins:null,p2wins:null,draws:0,bye:false,rest:false,forfeit:false});if(bye)fb.push({p1:bye,p2:null,p1wins:2,p2wins:0,draws:0,bye:true,rest:false,forfeit:false});return fb;}if(bye)pairs.push({p1:bye,p2:null,p1wins:2,p2wins:0,draws:0,bye:true,rest:false,forfeit:false});return pairs;}
+function generateSwiss(){const active=getActivePlayers(),n=active.length;if(n<2)return[];const sorted=shuffleBrackets(active);let bye=null,pool=sorted.map(p=>p.id);if(n%2===1){for(let i=pool.length-1;i>=0;i--){if(!hadBye(pool[i])){bye=pool[i];pool.splice(i,1);break;}}if(!bye)bye=pool.pop();}const pairs=pairPool(pool);/* pairPool non fallisce mai con pool pari: ogni abbinamento è ammesso (i rematch sono solo penalizzati) */if(bye)pairs.push({p1:bye,p2:null,p1wins:2,p2wins:0,draws:0,bye:true,rest:false,forfeit:false});return pairs;}
 function pairScore(pairs){let s=0;for(const m of pairs){const rematch=havePlayed(m.p1,m.p2)?1:0;s+=rematch*1000+Math.abs(matchPoints(m.p1)-matchPoints(m.p2));}return s;}
 function pairPool(pool){if(pool.length===0)return[];if(pool.length===2)return[{p1:pool[0],p2:pool[1],p1wins:null,p2wins:null,draws:0,bye:false,rest:false,forfeit:false}];const first=pool[0],rest=pool.slice(1);const fp=matchPoints(first);const cands=[...rest].sort((a,b)=>{const ra=havePlayed(first,a)?1:0,rb=havePlayed(first,b)?1:0;if(ra!==rb)return ra-rb;const da=Math.abs(matchPoints(a)-fp),db=Math.abs(matchPoints(b)-fp);if(da!==db)return da-db;return rest.indexOf(a)-rest.indexOf(b);});let best=null,bestScore=Infinity;for(const c of cands){const sub=pairPool(rest.filter(id=>id!==c));if(sub){const candidate=[{p1:first,p2:c,p1wins:null,p2wins:null,draws:0,bye:false,rest:false,forfeit:false},...sub];const sc=pairScore(candidate);if(sc<bestScore){best=candidate;bestScore=sc;if(sc===0)break;}}}return best;}
 function generatePairings(){return T.currentRound===1?generateDraftR1():generateSwiss();}
@@ -917,7 +918,9 @@ function copyStandings(){const isRR=T.mode==='roundrobin',st=getSwissStandings()
 function confirmReset(){showModal('Nuovo torneo?','Tutti i dati verranno persi.',()=>{localStorage.removeItem('mtg-t');location.reload();});}
 
 // ── NAV + SWIPE ──
-function switchTab(tab){$qsa('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$qsa('.screen').forEach(s=>s.classList.toggle('active',s.id===`screen-${tab}`));if(tab==='round'){if(!T.mode||T.mode==='swiss')viewingRound=T.currentRound||1;renderRound();}if(tab==='standings')renderStandings();if(tab==='draft')renderSeating();window.scrollTo(0,0);}
+function switchTab(tab,fromPop){$qsa('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$qsa('.screen').forEach(s=>s.classList.toggle('active',s.id===`screen-${tab}`));if(tab==='round'){if(!T.mode||T.mode==='swiss')viewingRound=T.currentRound||1;renderRound();}if(tab==='standings')renderStandings();if(tab==='draft')renderSeating();window.scrollTo(0,0);if(!fromPop&&(!history.state||history.state.tab!==tab))history.pushState({tab},'');}
+history.replaceState({tab:'setup'},'');
+window.addEventListener('popstate',e=>{if($id('modal').classList.contains('active'))closeModal();switchTab((e.state&&e.state.tab)||'setup',true);});
 $qsa('.nav-btn').forEach(btn=>btn.addEventListener('click',()=>{const t=btn.dataset.tab;if(t==='setup'){switchTab(t);return;}if(t==='draft'&&T.players.length<4){toast('Servono almeno 4 giocatori');return;}if((t==='round'||t==='standings')&&!T.started){toast('Inizia prima il torneo');return;}switchTab(t);}));
 function updateStatus(){const bar=$id('statusBar'),sub=$id('headerSub');if(!T.started){bar.classList.add('hidden');sub.textContent='Nuovo torneo';return;}bar.classList.remove('hidden');const ml=T.mode==='roundrobin'?'Round Robin BO1':'Swiss';if(T.ended){bar.className='status status-ended';bar.textContent=`Concluso · ${ml} · ${T.players.length} giocatori`;sub.textContent='Torneo concluso';}else{bar.className='status status-active';const done=T.rounds.filter(r=>r.pairings.filter(m=>!m.rest).every(m=>m.p1wins!==null)).length;bar.textContent=`${ml} · ${done}/${T.totalRounds} round`;sub.textContent=`${ml} · Round ${viewingRound}`;}}
 

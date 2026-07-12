@@ -1,10 +1,14 @@
-const CACHE_NAME = 'mtg-draft-v12';
+const CACHE_NAME = 'mtg-draft-v13';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './icon.svg'
+  './icon.svg',
+  './icon-192.png',
+  './icon-512.png',
+  './icon-maskable-512.png'
 ];
+const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -22,14 +26,41 @@ self.addEventListener('activate', e => {
   );
 });
 
+function fetchAndCache(request) {
+  return fetch(request).then(response => {
+    // Le risposte no-cors (font Google) sono "opaque": ok=false ma vanno cachate comunque
+    if (response.ok || response.type === 'opaque') {
+      const clone = response.clone();
+      caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+    }
+    return response;
+  });
+}
+
 self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+
+  // Font Google: cache-first (immutabili, evita dipendenza dalla rete a ogni avvio)
+  if (FONT_HOSTS.includes(url.hostname)) {
+    e.respondWith(
+      caches.match(e.request).then(cached => cached || fetchAndCache(e.request))
+    );
+    return;
+  }
+
+  // Altre richieste cross-origin: lasciale al browser
+  if (url.origin !== self.location.origin) return;
+
+  // Shell same-origin: stale-while-revalidate; fallback a index.html solo per navigazioni
   e.respondWith(
-    fetch(e.request).then(response => {
-      if (response.ok && e.request.method === 'GET') {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
-      }
-      return response;
-    }).catch(() => caches.match(e.request).then(cached => cached || caches.match('./index.html')))
+    caches.match(e.request).then(cached => {
+      const network = fetchAndCache(e.request).catch(() => null);
+      return cached || network.then(r => {
+        if (r) return r;
+        if (e.request.mode === 'navigate') return caches.match('./index.html');
+        return Response.error();
+      });
+    })
   );
 });
