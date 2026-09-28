@@ -7,5 +7,6 @@ import { summary } from './harness.mjs';
 await import('./tournament.test.mjs');
 await import('./league.test.mjs');
 await import('./sync.test.mjs');
+await import('./live.test.mjs');
 
 process.exit(summary() ? 1 : 0);

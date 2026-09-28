@@ -1,13 +1,15 @@
-const CACHE_NAME = 'mtg-draft-v16';
+const CACHE_NAME = 'mtg-draft-v17';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './css/app.css',
+  './js/config.js',
   './js/tournament.js',
   './js/league.js',
   './js/sync.js',
   './js/league-ui.js',
+  './js/live.js',
   './js/main.js',
   './icon.svg',
   './icon-192.png',

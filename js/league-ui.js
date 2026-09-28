@@ -2,7 +2,7 @@
 // dettaglio torneo archiviato, dati e sync. Più gli agganci nel torneo: giocatori abituali nel setup,
 // precedenti nell'annuncio pairing, colori del mazzo, "colpaccio".
 
-const LUI = { view: 'champ', season: null, profile: null };
+const LUI = { view: 'champ', season: null, profile: null, live: false };
 const LEAGUE_VIEWS = [['champ', 'Campionato'], ['elo', 'Elo'], ['history', 'Tornei'], ['h2h', 'Scontri'], ['players', 'Giocatori']];
 
 function fmtDate(iso) {
@@ -19,18 +19,19 @@ function whoHtml(id, opts) {
 function tournamentLid(p) { if (!p) return null; if (p.leagueId && resolvePlayer(p.leagueId)) return canonicalId(p.leagueId); const f = findPlayerByName(p.name); return f ? f.id : null; }
 
 // ── Tab Lega ──
-function openProfile(id) { LUI.profile = canonicalId(id); if (!$id('screen-league').classList.contains('active')) switchTab('league'); else renderLeague(); window.scrollTo(0, 0); }
+function openProfile(id) { LUI.live = false; LUI.profile = canonicalId(id); if (!$id('screen-league').classList.contains('active')) switchTab('league'); else renderLeague(); window.scrollTo(0, 0); }
 function closeProfile() { LUI.profile = null; renderLeague(); window.scrollTo(0, 0); }
-function setLeagueView(v) { LUI.view = v; LUI.profile = null; renderLeague(); }
+function setLeagueView(v) { LUI.view = v; LUI.profile = null; LUI.live = false; renderLeague(); }
 function setLeagueSeason(s) { LUI.season = s; renderLeague(); }
 function onLeagueSynced() { if ($id('screen-league').classList.contains('active')) renderLeague(); if (T.started) renderStandings(); }
 
 function renderLeague() {
   const C = $id('leagueContent');
+  if (LUI.live) { C.innerHTML = `<div id="liveView">${renderLiveView()}</div>`; return; }
   if (LUI.profile && resolvePlayer(LUI.profile)) { C.innerHTML = renderProfile(canonicalId(LUI.profile)); renderSyncBox(); return; }
   LUI.profile = null;
   const tournaments = sortedTournaments();
-  let h = `<div class="league-tabs" role="tablist">${LEAGUE_VIEWS.map(([v, label]) => `<button role="tab" aria-selected="${LUI.view === v}" class="league-tab${LUI.view === v ? ' active' : ''}" onclick="setLeagueView('${v}')">${label}</button>`).join('')}</div>`;
+  let h = `<div id="leagueLiveBanner">${liveBannerHtml()}</div><div class="league-tabs" role="tablist">${LEAGUE_VIEWS.map(([v, label]) => `<button role="tab" aria-selected="${LUI.view === v}" class="league-tab${LUI.view === v ? ' active' : ''}" onclick="setLeagueView('${v}')">${label}</button>`).join('')}</div>`;
   if (!tournaments.length && LUI.view !== 'players') {
     h += `<div class="card text-center"><div class="empty-emoji" aria-hidden="true">🏆</div><div class="card-title" style="margin-bottom:6px;">La lega parte dal prossimo torneo</div>
       <div class="text-sm text-dim" style="line-height:1.6;">Quando confermi <b>Termina torneo</b>, risultati, mazzi e classifica finiscono qui: campionato, rating Elo, scontri diretti e achievement si calcolano da soli.</div></div>`;
@@ -241,36 +242,70 @@ function renderSyncBox() {
   if (syncConfigured()) {
     const when = syncState.lastSync ? new Date(syncState.lastSync).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : null;
     const status = syncState.running ? 'Sincronizzazione…' : syncState.error ? `⚠️ ${esc(syncState.error)}` : when ? `Sincronizzato alle ${when}` : 'In attesa';
-    h += `<div class="kv"><span>Lega</span><b>${esc(syncCfg.name || syncCfg.league.slice(0, 8))}</b></div>
-      <div class="kv"><span>Accesso</span><b>${syncCanWrite() ? '✏️ Lettura e scrittura' : '👁️ Sola lettura'}</b></div>
-      <div class="kv"><span>Stato</span><b>${status}</b></div>
-      ${!syncCanWrite() && L.dirty.length ? `<div class="text-xs text-dim">${L.dirty.length} modifiche restano solo su questo telefono finché non inserisci il PIN.</div>` : ''}
-      <div class="btn-row"><button class="btn btn-primary btn-sm" onclick="syncNow(true)">Sincronizza</button><button class="btn btn-secondary btn-sm" onclick="copyText(syncInviteLink(),'Link invito copiato')">Link invito</button></div>
-      <div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="openSyncForm()">Modifica</button><button class="btn btn-secondary btn-sm" onclick="confirmDisconnect()">Scollega</button></div>`;
+    const canWrite = syncCanWrite(), liveOn = canWrite && syncCfg.live !== false;
+    h += `<div class="kv"><span>Lega</span><b>${esc(syncCfg.name || (isDefaultLeague() ? 'La nostra lega' : syncCfg.league.slice(0, 8)))}</b></div>
+      <div class="kv"><span>Accesso</span><b>${canWrite ? '✏️ Lettura e scrittura' : '👁️ Sola lettura'}</b></div>
+      <div class="kv"><span>Stato</span><b>${status}</b></div>`;
+    if (canWrite) {
+      h += `<div class="kv"><span>Torneo in diretta</span><b>${liveOn ? (live.pubError ? `⚠️ ${esc(live.pubError)}` : '🔴 Attivo') : 'Disattivato'}</b></div>
+        <div class="btn-row"><button class="btn btn-primary btn-sm" onclick="syncNow(true)">Sincronizza</button><button class="btn btn-secondary btn-sm" onclick="setLivePublish(${!liveOn})">${liveOn ? 'Disattiva live' : 'Attiva live'}</button></div>`;
+    } else {
+      h += `<div class="text-xs text-dim" style="line-height:1.55;">Per registrare i tornei nella lega (e trasmetterli in diretta) serve il PIN. Per seguire basta così.${L.dirty.length ? ` ${L.dirty.length} modifiche restano solo su questo telefono finché non inserisci il PIN.` : ''}</div>
+        <div class="btn-row"><button class="btn btn-primary btn-sm" onclick="openPinForm()">Inserisci PIN</button><button class="btn btn-secondary btn-sm" onclick="syncNow(true)">Aggiorna</button></div>`;
+    }
+    h += `<details class="sync-adv"><summary>Avanzate</summary><div class="btn-row">
+      ${canWrite ? `<button class="btn btn-secondary btn-sm" onclick="confirmRemovePin()">Togli PIN</button>` : ''}
+      <button class="btn btn-secondary btn-sm" onclick="openSyncForm()">Altra lega</button>
+      <button class="btn btn-secondary btn-sm" onclick="confirmDisconnect()">Scollega</button></div>
+      ${!isDefaultLeague() ? `<div class="btn-row">${defaultLeague() ? `<button class="btn btn-secondary btn-sm" onclick="switchToDefaultLeague()">Lega predefinita</button>` : ''}<button class="btn btn-secondary btn-sm" onclick="copyText(syncInviteLink(),'Link invito copiato')">Link invito</button></div>` : ''}
+    </details>`;
   } else {
-    h += `<div class="text-sm text-dim" style="line-height:1.55;">I dati della lega stanno su questo telefono. Collegando Supabase li vedete tutti dai vostri telefoni e non si perdono se cambi dispositivo.</div>
-      <button class="btn btn-secondary btn-sm mt" style="width:100%;" onclick="openSyncForm()">Collega Supabase</button>`;
+    h += `<div class="text-sm text-dim" style="line-height:1.55;">Sincronizzazione spenta: i dati della lega stanno solo su questo telefono.</div>
+      <button class="btn btn-secondary btn-sm mt" style="width:100%;" onclick="${defaultLeague() ? 'switchToDefaultLeague()' : 'openSyncForm()'}">${defaultLeague() ? 'Ricollega alla lega' : 'Collega Supabase'}</button>`;
   }
   h += `<div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="exportLeague()">Esporta backup</button><button class="btn btn-secondary btn-sm" onclick="$id('importFile').click()">Importa</button></div>`;
   box.innerHTML = h;
 }
+function openPinForm() {
+  showModalCustom('Inserisci il PIN', 'Serve solo a chi registra i tornei: lo inserisci una volta su questo telefono.',
+    `<input type="password" id="pinInp" autocomplete="off" aria-label="PIN della lega" onkeydown="if(event.key==='Enter')savePinForm()">
+    <div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="closeModal()">Annulla</button><button class="btn btn-primary btn-sm" id="pinSaveBtn" onclick="savePinForm()">Conferma</button></div>`);
+}
+async function savePinForm() {
+  const pin = $id('pinInp').value, btn = $id('pinSaveBtn');
+  if (!pin) return;
+  btn.disabled = true; btn.textContent = 'Verifica…';
+  try {
+    await verifyPin(pin);
+    syncCfg.pin = pin; saveSyncCfg(); closeModal(); renderSyncBox();
+    toast('PIN corretto: ora puoi registrare i tornei');
+    await syncNow(false); renderSyncBox();
+    if (T.started) livePublishSoon();
+  } catch (e) {
+    toast(e.message || 'Verifica non riuscita');
+    btn.disabled = false; btn.textContent = 'Conferma';
+  }
+}
+function confirmRemovePin() { showModal('Togliere il PIN?', 'Questo telefono resta collegato in sola lettura.', () => { if (T.started && livePublishEnabled()) livePublishNow(true); syncCfg.pin = ''; saveSyncCfg(); renderSyncBox(); }); }
+function switchToDefaultLeague() { stopLive(); reconnectDefault(); startLive(); renderSyncBox(); syncNow(true); }
 function openSyncForm() {
-  const c = syncCfg || {};
-  showModalCustom('Collega Supabase', 'URL e chiave pubblica sono in Project Settings → API. L\'id lega e il PIN li crei con supabase/schema.sql.',
+  const c = syncCfg && !isDefaultLeague() ? syncCfg : {};
+  showModalCustom('Collega un\'altra lega', 'URL e chiave pubblica sono in Project Settings → API del progetto Supabase; id lega e PIN li crei con supabase/schema.sql.',
     `<label class="field-label" for="sbUrl">Project URL</label><input type="url" id="sbUrl" value="${esc(c.url || '')}" placeholder="https://xxxx.supabase.co" autocomplete="off">
     <label class="field-label mt" for="sbKey">Chiave pubblica (anon / publishable)</label><input type="text" id="sbKey" value="${esc(c.key || '')}" autocomplete="off">
     <label class="field-label mt" for="sbLeague">Id lega</label><input type="text" id="sbLeague" value="${esc(c.league || '')}" autocomplete="off">
     <label class="field-label mt" for="sbName">Nome lega (facoltativo)</label><input type="text" id="sbName" value="${esc(c.name || '')}" maxlength="40">
-    <label class="field-label mt" for="sbPin">PIN (vuoto = sola lettura)</label><input type="password" id="sbPin" value="${esc(c.pin || '')}" autocomplete="off">
+    <label class="field-label mt" for="sbPin">PIN (vuoto = sola lettura)</label><input type="password" id="sbPin" value="" autocomplete="off">
     <div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="closeModal()">Annulla</button><button class="btn btn-primary btn-sm" onclick="saveSyncForm()">Collega</button></div>`);
 }
 function saveSyncForm() {
   const url = $id('sbUrl').value.trim(), key = $id('sbKey').value.trim(), league = $id('sbLeague').value.trim();
   if (!/^https:\/\/.+/.test(url) || !key || !/^[0-9a-f-]{36}$/i.test(league)) return toast('Controlla URL, chiave e id lega');
+  stopLive();
   configureSync({ url, key, league, pin: $id('sbPin').value, name: $id('sbName').value.trim() });
-  closeModal(); renderSyncBox(); syncNow(true);
+  startLive(); closeModal(); renderSyncBox(); syncNow(true);
 }
-function confirmDisconnect() { showModal('Scollegare Supabase?', 'I dati restano su questo telefono; smette solo la sincronizzazione.', () => { disconnectSync(); renderSyncBox(); }); }
+function confirmDisconnect() { showModal('Scollegare la sincronizzazione?', 'I dati restano su questo telefono; smette solo la sincronizzazione (anche il torneo in diretta).', () => { disconnectSync(); renderSyncBox(); }); }
 
 function exportLeague() {
   const data = { format: 'mtg-draft-league', version: 1, exportedAt: new Date().toISOString(), players: L.players, tournaments: L.tournaments };

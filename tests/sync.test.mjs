@@ -1,38 +1,13 @@
 // Test del sync Supabase contro un finto server PostgREST in memoria
-// (filtri eq/gt, ordinamento, limit, e la funzione league_push con PIN e last-write-wins).
+// (tests/mock-supabase.mjs: stesso contratto di supabase/schema.sql).
 import { app, S, sandbox, check, section } from './harness.mjs';
+import { LEAGUE, server, resetServer } from './mock-supabase.mjs';
 
 section('Sync');
 
-const LEAGUE = '11111111-2222-3333-4444-555555555555';
-const server = { rows: new Map(), pin: '1234', calls: [] };
-sandbox.fetch = async (url, opts = {}) => {
-  const u = new URL(url);
-  server.calls.push({ path: u.pathname, method: opts.method || 'GET', headers: opts.headers });
-  const reply = (status, body) => ({ ok: status < 300, status, json: async () => body });
-  if (u.pathname === '/rest/v1/league_docs') {
-    const league = u.searchParams.get('league_id').replace('eq.', '');
-    const since = Number(u.searchParams.get('updated_at').replace('gt.', ''));
-    const limit = Number(u.searchParams.get('limit'));
-    const rows = [...server.rows.values()].filter(r => r.league_id === league && r.updated_at > since)
-      .sort((a, b) => a.updated_at - b.updated_at).slice(0, limit);
-    return reply(200, rows.map(r => ({ id: r.id, kind: r.kind, data: r.data, updated_at: r.updated_at })));
-  }
-  if (u.pathname === '/rest/v1/rpc/league_push') {
-    const { p_league, p_pin, p_docs } = JSON.parse(opts.body);
-    if (p_pin !== server.pin) return reply(400, { message: 'PIN non valido', code: '28P01' });
-    let n = 0;
-    for (const d of p_docs) {
-      const cur = server.rows.get(d.id);
-      if (!cur || cur.updated_at < d.updated_at) { server.rows.set(d.id, { league_id: p_league, ...d }); n++; }
-    }
-    return reply(200, n);
-  }
-  return reply(404, { message: 'not found' });
-};
 function resetAll() {
   S.L.players = {}; S.L.tournaments = {}; S.L.dirty = []; app.saveLeague(true);
-  server.rows.clear(); server.calls = [];
+  resetServer();
   app.disconnectSync();
 }
 const connect = pin => app.configureSync({ url: 'https://demo.supabase.co/', key: 'sb_publishable_abc', league: LEAGUE, pin, name: 'Giovedì' });

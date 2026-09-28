@@ -54,6 +54,7 @@ function save() {
     tm: { seconds: TM.seconds, running: TM.running, total: TM.total, firedWarning: TM.firedWarning, firedExpired: TM.firedExpired, firedOvertime: TM.firedOvertime },
     savedAt: Date.now()
   }));
+  if (typeof livePublishSoon === 'function') livePublishSoon();
 }
 function load() {
   try {
@@ -332,7 +333,7 @@ function renderRound(){
   const real=round?round.pairings.filter(m=>!m.rest&&!m.bye):[],done=real.filter(m=>m.p1wins!==null).length,tot=real.length;
   let h='';
   if(round)h+=renderStickyBar(done,tot,isRR);
-  h+=`<div class="card" style="padding:12px 16px;"><div class="flex-between"><button class="btn btn-secondary btn-sm" onclick="viewRound(${viewingRound-1})" ${viewingRound<=1?'disabled':''} aria-label="Round precedente">←</button><span style="font-weight:800;font-size:0.95rem;">Round ${viewingRound} <span style="font-weight:500;color:var(--text-dim);">/ ${T.totalRounds}</span> <span class="mode-badge ${isRR?'rr':'swiss'}">${isRR?'BO1':'Swiss'}</span></span><button class="btn btn-secondary btn-sm" onclick="viewRound(${viewingRound+1})" ${viewingRound>=maxNav?'disabled':''} aria-label="Round successivo">→</button></div>${round&&!T.ended?`<button class="btn btn-secondary btn-sm" style="width:100%;margin-top:10px;" onclick="openAnnounce()">📣 Annuncia pairing</button>`:''}</div>`;
+  h+=`<div class="card" style="padding:12px 16px;"><div class="flex-between"><button class="btn btn-secondary btn-sm" onclick="viewRound(${viewingRound-1})" ${viewingRound<=1?'disabled':''} aria-label="Round precedente">←</button><span style="font-weight:800;font-size:0.95rem;">Round ${viewingRound} <span style="font-weight:500;color:var(--text-dim);">/ ${T.totalRounds}</span> <span class="mode-badge ${isRR?'rr':'swiss'}">${isRR?'BO1':'Swiss'}</span>${liveBadgeHtml()}</span><button class="btn btn-secondary btn-sm" onclick="viewRound(${viewingRound+1})" ${viewingRound>=maxNav?'disabled':''} aria-label="Round successivo">→</button></div>${round&&!T.ended?`<button class="btn btn-secondary btn-sm" style="width:100%;margin-top:10px;" onclick="openAnnounce()">📣 Annuncia pairing</button>`:''}</div>`;
   if(!round){C.innerHTML=h;return;}
   const canEdit=!T.ended&&(isRR||viewingRound===T.currentRound);
   let firstInc=null;
@@ -485,7 +486,7 @@ function renderStandings(){
 function togglePlayer(pid){expandedPlayer=expandedPlayer===pid?null:pid;renderStandings();}
 function renderDetail(pid){const ms=getPlayerMatches(pid);const lid=tournamentLid(P(pid));const tb=`<div class="player-detail-tb">OMW ${(omw(pid)*100).toFixed(1)}% · GW ${(gwp(pid)*100).toFixed(1)}% · OGW ${(ogw(pid)*100).toFixed(1)}%</div>${deckPickerHtml(pid)}${lid?`<button class="link-btn" onclick="event.stopPropagation();openProfile('${lid}')">Profilo in lega →</button>`:''}`;if(!ms.length)return`<div class="player-detail"><div class="text-sm text-dim">Nessun match</div>${tb}</div>`;return`<div class="player-detail">${ms.map(m=>{const c=m.result==='W'?'var(--green)':m.result==='L'?'var(--red)':'var(--text-dim)';return`<div class="player-detail-match"><span>R${m.round} vs ${esc(m.opp)}</span><span style="color:${c};font-weight:700;">${m.score}</span></div>`;}).join('')}${tb}</div>`;}
 function copyStandings(){const isRR=T.mode==='roundrobin',st=getSwissStandings();let t=`${T.ended?'🏆 CLASSIFICA FINALE':'📊 Classifica'}\n${isRR?'Round Robin BO1':'Swiss'} · ${T.players.length} giocatori\n${'─'.repeat(26)}\n`;const medals=medalsById(st);st.forEach((p,i)=>{const m=medals.get(p.id)||`${i+1}.`;t+=isRR?`${m} ${p.name} — ${p.record.wins}W ${p.record.losses}L (${p.mp}pts)\n`:`${m} ${p.name} — ${p.record.wins}W ${p.record.losses}L ${p.record.draws}D (${p.mp}pts)\n`;});copyText(t,'Classifica copiata!');}
-function confirmReset(){showModal('Nuovo torneo?',T.archivedId?'Il torneo è già salvato nello storico della lega.':T.ended?'Attenzione: questo torneo non è stato salvato nello storico della lega.':T.started?'Il torneo in corso non è concluso: non finirà nello storico della lega.':'I giocatori inseriti verranno tolti. Lo storico della lega resta.',()=>{localStorage.removeItem('mtg-t');location.reload();});}
+function confirmReset(){showModal('Nuovo torneo?',T.archivedId?'Il torneo è già salvato nello storico della lega.':T.ended?'Attenzione: questo torneo non è stato salvato nello storico della lega.':T.started?'Il torneo in corso non è concluso: non finirà nello storico della lega.':'I giocatori inseriti verranno tolti. Lo storico della lega resta.',()=>{liveClearOnReset();localStorage.removeItem('mtg-t');location.reload();});}
 
 // ── NAV + SWIPE ──
 function switchTab(tab,fromPop){$qsa('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$qsa('.screen').forEach(s=>s.classList.toggle('active',s.id===`screen-${tab}`));if(tab==='round'){if(!T.mode||T.mode==='swiss')viewingRound=T.currentRound||1;renderRound();}if(tab==='standings')renderStandings();if(tab==='draft')renderSeating();if(tab==='league')renderLeague();window.scrollTo(0,0);if(!fromPop&&(!history.state||history.state.tab!==tab))history.pushState({tab},'');}

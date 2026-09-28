@@ -7,6 +7,8 @@ import vm from 'node:vm';
 const root = new URL('../', import.meta.url);
 const html = readFileSync(new URL('index.html', root), 'utf8');
 const sources = [...html.matchAll(/<script(?: src="([^"]+)")?>([\s\S]*?)<\/script>/g)]
+  // config.js (lega predefinita reale) resta fuori: i test non devono collegarsi a Supabase
+  .filter(m => m[1] !== 'js/config.js')
   .map(m => ({ name: m[1] || 'index.html<script>', code: m[1] ? readFileSync(new URL(m[1], root), 'utf8') : m[2] }));
 if (!sources.some(s => s.code.includes('getPlayerRecord'))) {
   console.error('FATAL: script dell\'app non trovati da index.html');
@@ -62,7 +64,7 @@ vm.createContext(sandbox);
 const exportShim = `
 ;globalThis.__t = {
   get T() { return T }, get TM() { return TM }, get L() { return L },
-  get syncCfg() { return syncCfg }, get syncState() { return syncState },
+  get syncCfg() { return syncCfg }, get syncState() { return syncState }, get live() { return live }, get LUI() { return LUI },
   get viewingRound() { return viewingRound }, set viewingRound(v) { viewingRound = v },
   get playerIdCounter() { return playerIdCounter }, set playerIdCounter(v) { playerIdCounter = v },
 };`;

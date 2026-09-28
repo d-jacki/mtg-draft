@@ -9,9 +9,21 @@ let syncCfg = null;
 const syncState = { running: false, error: null, lastSync: 0 };
 let _syncTimer = null;
 
-function loadSyncCfg() { try { syncCfg = JSON.parse(localStorage.getItem(SYNC_KEY)) || null; } catch (e) { syncCfg = null; } }
-function saveSyncCfg() { if (syncCfg) localStorage.setItem(SYNC_KEY, JSON.stringify(syncCfg)); else localStorage.removeItem(SYNC_KEY); }
+// Senza configurazione salvata si usa la lega predefinita di js/config.js (sola lettura finché non si mette il PIN).
+// {off: true} = l'utente ha scollegato il sync: la lega predefinita non viene riapplicata.
+function defaultLeague() { return typeof DEFAULT_LEAGUE !== 'undefined' && DEFAULT_LEAGUE && DEFAULT_LEAGUE.url ? DEFAULT_LEAGUE : null; }
+function loadSyncCfg() {
+  let stored = null;
+  try { stored = JSON.parse(localStorage.getItem(SYNC_KEY)); } catch (e) {}
+  if (stored && stored.off) { syncCfg = null; return; }
+  if (stored && stored.url) { syncCfg = stored; return; }
+  syncCfg = null;
+  const d = defaultLeague();
+  if (d) configureSync({ url: d.url, key: d.key, league: d.league, pin: '', name: d.name });
+}
+function saveSyncCfg() { localStorage.setItem(SYNC_KEY, JSON.stringify(syncCfg || { off: true })); }
 function syncConfigured() { return !!(syncCfg && syncCfg.url && syncCfg.key && syncCfg.league); }
+function isDefaultLeague() { const d = defaultLeague(); return !!(d && syncCfg && syncCfg.url === d.url.replace(/\/+$/, '') && syncCfg.league === d.league); }
 function syncCanWrite() { return syncConfigured() && !!syncCfg.pin; }
 
 function configureSync({ url, key, league, pin, name }) {
@@ -22,7 +34,8 @@ function configureSync({ url, key, league, pin, name }) {
   if (!sameLeague) L.dirty = leagueDocs().map(d => d.data.id);
   saveSyncCfg(); saveLeague(true);
 }
-function disconnectSync() { syncCfg = null; saveSyncCfg(); syncState.error = null; }
+function disconnectSync() { syncCfg = null; saveSyncCfg(); syncState.error = null; if (typeof stopLive === 'function') stopLive(); }
+function reconnectDefault() { const d = defaultLeague(); if (!d) return; configureSync({ url: d.url, key: d.key, league: d.league, pin: '', name: d.name }); }
 
 function sbHeaders() {
   const h = { apikey: syncCfg.key, 'Content-Type': 'application/json' };
@@ -33,7 +46,7 @@ function sbHeaders() {
 async function sbError(res) {
   let msg = `HTTP ${res.status}`;
   try { const j = await res.json(); msg = j.message || j.error || msg; } catch (e) {}
-  if (/PIN/i.test(msg)) return new Error('PIN non valido');
+  if (/PIN non valido/i.test(msg)) return new Error('PIN non valido');
   return new Error(msg);
 }
 
@@ -51,15 +64,24 @@ async function syncPull() {
   syncCfg.lastPull = since; saveSyncCfg();
   return pulled;
 }
+// Chiama una RPC di scrittura: gli errori di PIN arrivano come {error: '...'} con HTTP 200
+async function sbRpc(name, body, keepalive) {
+  const res = await fetch(`${syncCfg.url}/rest/v1/rpc/${name}`, { method: 'POST', headers: sbHeaders(), body: JSON.stringify(body), keepalive: !!keepalive });
+  if (!res.ok) throw await sbError(res);
+  let out = null; try { out = await res.json(); } catch (e) {}
+  if (out && typeof out === 'object' && out.error) throw new Error(out.error);
+  return out;
+}
+// Verifica il PIN senza scrivere niente (lista documenti vuota)
+async function verifyPin(pin) {
+  await sbRpc('league_push', { p_league: syncCfg.league, p_pin: pin, p_docs: [] });
+  return true;
+}
 async function syncPush() {
   if (!syncCanWrite() || !L.dirty.length) return 0;
   const ids = L.dirty.slice();
   const docs = leagueDocs(ids).map(d => ({ id: d.data.id, kind: d.kind, data: d.data, updated_at: d.data.updatedAt }));
-  const res = await fetch(`${syncCfg.url}/rest/v1/rpc/league_push`, {
-    method: 'POST', headers: sbHeaders(),
-    body: JSON.stringify({ p_league: syncCfg.league, p_pin: syncCfg.pin, p_docs: docs }),
-  });
-  if (!res.ok) throw await sbError(res);
+  await sbRpc('league_push', { p_league: syncCfg.league, p_pin: syncCfg.pin, p_docs: docs });
   // Tolgo dalla coda solo quello che ho mandato (se nel frattempo è cambiato altro resta in coda)
   L.dirty = L.dirty.filter(id => !ids.includes(id)); saveLeague(true);
   return docs.length;

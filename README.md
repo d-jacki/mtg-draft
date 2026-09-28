@@ -27,31 +27,41 @@ PWA per gestire tornei di Magic: The Gathering tra amici — draft con pairing *
 - **Achievement** (13, retroattivi) e titoli: 👑 campione in carica, 🩷 leader del campionato
 - **💥 Colpaccio** quando vince lo sfavorito secondo l'Elo (pronostico sotto il 30%)
 - **Backup**: esporta/importa l'archivio in JSON
-- **Sync Supabase** (facoltativo): tutti vedete la lega dal vostro telefono — vedi sotto
+- **Sync Supabase**: tutti vedete la lega dal vostro telefono — vedi sotto
 
-## Sincronizzazione con Supabase (facoltativa)
+### Torneo in diretta
+- Il telefono che gestisce il torneo (con il PIN) lo pubblica a ogni risultato, round o avvio del timer — badge **● LIVE** nel round
+- Gli altri vedono il banner **🔴 Torneo in corso · Segui**: pairing, risultati, classifica e timer in tempo reale
+- **"Io sono…"**: scegli il tuo nome e l'app ti dice tavolo e avversario (o bye/riposo) ed evidenzia la tua riga
+- Aggiornamenti istantanei con Supabase Realtime, lettura di riserva ogni 20 s; il torneo resta offline-first e ripubblica al ritorno della rete
 
-L'app è local-first: senza Supabase funziona tutto, i dati stanno sul telefono. Con Supabase la lega si condivide tra più telefoni.
+## Sincronizzazione con Supabase
 
+L'app è local-first: senza rete funziona tutto, i dati stanno sul telefono. La lega è già configurata in `js/config.js` (URL, chiave publishable, id lega): chi apre l'app è collegato **in sola lettura** senza fare niente. Per registrare tornei e trasmetterli in diretta: **Lega → Dati e sync → Inserisci PIN**, una volta sola sul telefono di chi gestisce.
+
+Da zero, per una lega nuova:
 1. Crea un progetto su [supabase.com](https://supabase.com) (piano gratuito).
-2. Nel **SQL Editor** esegui `supabase/schema.sql`.
-3. Sempre nel SQL Editor crea la lega con il tuo PIN (le istruzioni sono in fondo a `schema.sql`) e copia l'**id** restituito.
-4. Nell'app: **Lega → Dati e sync → Collega Supabase**, con Project URL e chiave pubblica (Project Settings → API), id lega e PIN.
-5. **Link invito**: mandalo agli amici — aprendolo, il loro telefono si collega in sola lettura. Chi deve registrare tornei inserisce anche il PIN.
+2. Nel **SQL Editor** esegui `supabase/schema.sql` (rieseguibile: dopo un aggiornamento dello schema basta rilanciarlo, i dati restano).
+3. Sempre nel SQL Editor crea la lega con il PIN (istruzioni in fondo a `schema.sql`) e copia l'**id** restituito.
+4. Metti Project URL, chiave publishable (Project Settings → API Keys) e id lega in `js/config.js`. **Mai la secret key.**
 
-Sicurezza: la chiave pubblica di Supabase è pubblica per natura. Con quella si può solo **leggere** la lega; ogni scrittura passa dalla funzione `league_push`, che verifica il PIN. Conflitti tra telefoni: vince la modifica più recente per ogni giocatore/torneo.
+In alternativa, **Lega → Dati e sync → Avanzate → Altra lega** collega a mano un'altra lega (e da lì si genera un link invito).
+
+Sicurezza: URL e chiave publishable sono pubblici per natura (e sono nel repo). Con quelli si può solo **leggere**; ogni scrittura passa da `league_push` / `league_live_push`, che verificano il PIN, e dopo **10 PIN sbagliati in 15 minuti** la lega rifiuta le scritture per 15 minuti. Usa un PIN di almeno 6 caratteri. Conflitti tra telefoni: vince la modifica più recente per ogni giocatore/torneo; un solo torneo live per lega.
 
 ## Struttura
 
 ```
 index.html          markup
 css/app.css         stili
+js/config.js        lega predefinita (URL, chiave publishable, id lega)
 js/tournament.js    torneo: setup, tavolo, pairing, punteggi, timer, round, classifica, navigazione
 js/league.js        lega: anagrafica, archivio, campionato, Elo, statistiche, achievement (logica pura)
-js/sync.js          sync Supabase via REST (nessuna libreria)
-js/league-ui.js     tab Lega, profilo, dettaglio torneo, agganci nel torneo
+js/sync.js          sync Supabase via REST (nessuna libreria), verifica PIN
+js/league-ui.js     tab Lega, profilo, dettaglio torneo, dati e sync, agganci nel torneo
+js/live.js          torneo in diretta: pubblicazione, Realtime (WebSocket Phoenix), vista "Segui live"
 js/main.js          avvio: caricamento dati, ripristino, service worker (va caricato per ultimo)
-supabase/schema.sql schema e funzione di scrittura con PIN
+supabase/schema.sql schema, funzioni di scrittura con PIN e limite di tentativi, Realtime
 tests/              test senza dipendenze
 ```
 
@@ -65,16 +75,17 @@ Suite senza dipendenze (serve solo Node ≥ 18):
 node tests/run-tests.mjs
 ```
 
-L'harness (`tests/harness.mjs`) carica gli script nell'ordine di `index.html` in una sandbox Node con DOM finto. Tre suite:
+L'harness (`tests/harness.mjs`) carica gli script nell'ordine di `index.html` (tranne `config.js`: i test non toccano il Supabase vero) in una sandbox Node con DOM finto. `tests/mock-supabase.mjs` è un finto Supabase con lo stesso contratto di `schema.sql`. Quattro suite:
 - `tournament.test.mjs` — tiebreaker, GW% con ID/bye, pairing (anche performance a 16 giocatori), round robin, drop/forfeit, undo, tavolo, UX
 - `league.test.mjs` — archivio, campionato, Elo, scontri diretti, unione profili, achievement, import/export, colori, colpaccio, rendering
-- `sync.test.mjs` — sync contro un finto server PostgREST: primo caricamento, modifiche remote, last-write-wins, PIN errato, sola lettura, paginazione, link invito
+- `sync.test.mjs` — primo caricamento, modifiche remote, last-write-wins, PIN errato, sola lettura, paginazione, link invito
+- `live.test.mjs` — lega predefinita, verifica PIN e blocco anti forza bruta, pubblicazione live, vista "Segui live", Realtime
 
 ## Deploy
 
 GitHub Pages dal branch `master`.
 
 1. Modifica i file
-2. **Incrementa `CACHE_NAME` in `sw.js`** (es. `mtg-draft-v17`) per invalidare la cache offline; se aggiungi un file, mettilo in `ASSETS`
+2. **Incrementa `CACHE_NAME` in `sw.js`** (es. `mtg-draft-v18`) per invalidare la cache offline; se aggiungi un file, mettilo in `ASSETS`
 3. `node tests/run-tests.mjs`
 4. Commit e push — Pages si aggiorna in 1-2 minuti

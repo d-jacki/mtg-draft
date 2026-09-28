@@ -27,6 +27,8 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 })();
 
 syncNow(false);
+startLive();
+if (T.started) livePublishSoon();
 
 // ── SERVICE WORKER ──
 if ('serviceWorker' in navigator) {
