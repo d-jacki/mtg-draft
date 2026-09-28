@@ -29,6 +29,9 @@ create index if not exists league_docs_updated on public.league_docs (league_id,
 alter table public.leagues enable row level security;
 alter table public.league_docs enable row level security;
 
+-- Permesso esplicito: i progetti nuovi possono avere disattivata l'esposizione automatica delle tabelle
+grant select on public.league_docs to anon, authenticated;
+
 drop policy if exists "lettura documenti lega" on public.league_docs;
 create policy "lettura documenti lega" on public.league_docs
   for select to anon, authenticated using (true);
