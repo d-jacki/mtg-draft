@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mtg-draft-v14';
+const CACHE_NAME = 'mtg-draft-v15';
 const ASSETS = [
   './',
   './index.html',
@@ -10,12 +10,13 @@ const ASSETS = [
   './fonts/plus-jakarta-sans.woff2',
   './fonts/fraunces.woff2'
 ];
-const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(ASSETS))
+      // cache: 'reload' salta la cache HTTP (GitHub Pages: max-age 10 min), altrimenti la nuova versione
+      // del service worker potrebbe mettere in cache un index.html vecchio
+      .then(cache => cache.addAll(ASSETS.map(url => new Request(url, { cache: 'reload' }))))
       .then(() => self.skipWaiting())
   );
 });
@@ -30,8 +31,7 @@ self.addEventListener('activate', e => {
 
 function fetchAndCache(request) {
   return fetch(request).then(response => {
-    // Le risposte no-cors (font Google) sono "opaque": ok=false ma vanno cachate comunque
-    if (response.ok || response.type === 'opaque') {
+    if (response.ok) {
       const clone = response.clone();
       caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
     }
@@ -43,15 +43,7 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
 
-  // Font Google: cache-first (immutabili, evita dipendenza dalla rete a ogni avvio)
-  if (FONT_HOSTS.includes(url.hostname)) {
-    e.respondWith(
-      caches.match(e.request).then(cached => cached || fetchAndCache(e.request))
-    );
-    return;
-  }
-
-  // Altre richieste cross-origin: lasciale al browser
+  // Tutto è self-hosted (font inclusi): le richieste cross-origin vanno lasciate al browser
   if (url.origin !== self.location.origin) return;
 
   // Shell same-origin: stale-while-revalidate; fallback a index.html solo per navigazioni

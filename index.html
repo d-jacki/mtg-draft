@@ -599,6 +599,9 @@
     background-repeat: no-repeat;
     background-position: right 14px center;
   }
+  .standings-table tbody tr:focus-visible, .match-result-display:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: -2px;
+  }
   .btn:focus-visible, .score-btn:focus-visible, .nav-btn:focus-visible,
   .seat-arrow-btn:focus-visible, .player-remove:focus-visible {
     outline: 2px solid var(--accent);
@@ -695,7 +698,7 @@
   <button onclick="location.reload()">Aggiorna</button>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 const T = { players: [], draftOrder: [], rounds: [], started: false, ended: false, totalRounds: 0, currentRound: 0, mode: 'swiss' };
@@ -718,6 +721,8 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 // Beep WebAudio (niente asset, funziona offline); il contesto va creato su gesto utente
 let _audioCtx = null;
 function ensureAudio() { try { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; _audioCtx = _audioCtx || new AC(); if (_audioCtx.state === 'suspended') _audioCtx.resume(); } catch (e) {} }
+// Dopo un reload a timer attivo (o al ritorno in primo piano su iOS) il contesto resta sospeso finché l'utente non tocca lo schermo
+document.addEventListener('pointerdown', () => { if (TM.running) ensureAudio(); }, { passive: true });
 function beep(times) {
   try {
     if (!_audioCtx) return;
@@ -738,6 +743,12 @@ function setHeaderH() { const el = document.querySelector('.header'); if (el && 
 window.addEventListener('resize', setHeaderH);
 setHeaderH();
 const P = id => T.players.find(p => p.id === id);
+// Nome breve per pulsanti e risultati: il primo nome, oppure il nome intero se un altro giocatore ha lo stesso primo nome
+function shortName(pid) {
+  const p = P(pid); if (!p) return '?';
+  const first = n => n.split(' ')[0].toLowerCase(), f = first(p.name);
+  return T.players.some(o => o.id !== pid && first(o.name) === f) ? p.name : p.name.split(' ')[0];
+}
 function save() {
   localStorage.setItem('mtg-t', JSON.stringify({
     T, viewingRound, playerIdCounter,
@@ -770,6 +781,9 @@ function showModalCustom(t, txt, h) { $id('modalTitle').textContent = t; $id('mo
 function closeModal() { $id('modal').classList.remove('active'); if(_modalReturnFocus&&typeof _modalReturnFocus.focus==='function'){try{_modalReturnFocus.focus();}catch(e){}} _modalReturnFocus=null; }
 $id('modal').addEventListener('click', e => { if (e.target === $id('modal')) closeModal(); });
 document.addEventListener('keydown', e => {
+  // Elementi con role="button" che non sono <button> (righe classifica, risultato da modificare)
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[role="button"]:not(button)')) { e.preventDefault(); e.target.click(); return; }
+  if (e.key === 'Escape' && $id('announceOverlay').classList.contains('active')) { e.preventDefault(); closeAnnounce(); return; }
   if (!$id('modal').classList.contains('active')) return;
   if (e.key === 'Escape') { e.preventDefault(); closeModal(); return; }
   if (e.key !== 'Tab') return;
@@ -789,9 +803,10 @@ function addPlayer() {
   if (T.players.length >= 16) return toast('Massimo 16 giocatori');
   if (T.players.some(p => p.name.toLowerCase() === name.toLowerCase())) return toast('Nome già presente');
   T.players.push({ id: ++playerIdCounter, name, dropped: false, droppedAtRound: null });
+  syncDraftOrder();
   inp.value = ''; inp.focus(); renderPlayerList(); save();
 }
-function removePlayer(id) { T.players = T.players.filter(p => p.id !== id); renderPlayerList(); save(); }
+function removePlayer(id) { T.players = T.players.filter(p => p.id !== id); syncDraftOrder(); renderPlayerList(); save(); }
 function renderPlayerList() {
   $id('playerList').innerHTML = T.players.map((p, i) => `<div class="player-item"><span class="player-num">${i + 1}</span><span class="player-name">${esc(p.name)}</span><button class="player-remove" onclick="removePlayer(${p.id})" aria-label="Rimuovi ${esc(p.name)}">✕</button></div>`).join('');
   const n = T.players.length; $id('playerCount').textContent = `${n} giocator${n === 1 ? 'e' : 'i'}`;
@@ -799,13 +814,20 @@ function renderPlayerList() {
 }
 
 // ── SEATING ──
+// Allinea l'ordine al tavolo ai giocatori iscritti: toglie i rimossi e accoda i nuovi, mantenendo le posizioni
+// già sistemate. Se il tavolo non esiste ancora (mai aperto) lo crea mescolato.
+function syncDraftOrder() {
+  if (T.started) return;
+  const ids = T.players.map(p => p.id);
+  if (!T.draftOrder.length) { if (ids.length >= 4) T.draftOrder = shuffle(ids); return; }
+  const kept = T.draftOrder.filter(id => ids.includes(id));
+  T.draftOrder = kept.length ? kept.concat(shuffle(ids.filter(id => !kept.includes(id)))) : shuffle(ids);
+}
 function goToSeating() {
   if (T.players.length < 4) return;
-  if (T.draftOrder.length !== T.players.length || !T.draftOrder.every(id => T.players.some(p => p.id === id)))
-    T.draftOrder = shuffle(T.players.map(p => p.id));
-  renderSeating(); switchTab('draft');
+  syncDraftOrder(); renderSeating(); switchTab('draft');
 }
-function renderSeating() { renderSeatList(); renderDraftVisual(); renderPairingPreview(); }
+function renderSeating() { syncDraftOrder(); renderSeatList(); renderDraftVisual(); renderPairingPreview(); }
 function renderSeatList() {
   const n = T.draftOrder.length, locked = T.started;
   $id('seatList').innerHTML = T.draftOrder.map((id, i) => {
@@ -869,6 +891,7 @@ function handleStart() {
   }
 }
 function startWithMode(mode, rounds, timerMin) {
+  syncDraftOrder();
   T.mode = mode; T.started = true; T.ended = false; T.rounds = []; T.currentRound = 0;
   if (mode === 'swiss') { T.totalRounds = rounds || Math.ceil(Math.log2(T.players.length)); TM.total = (timerMin || 50) * 60; }
   else { T.totalRounds = T.players.length; generateAllRRRounds(); }
@@ -915,7 +938,15 @@ function gwp(pid){const r=getPlayerRecord(pid);const t=r.gameWins+r.gameLosses+r
 function omw(pid){const r=getPlayerRecord(pid);return r.opponents.length===0?0.33:r.opponents.reduce((a,o)=>a+mwp(o),0)/r.opponents.length;}
 function ogw(pid){const r=getPlayerRecord(pid);return r.opponents.length===0?0.33:r.opponents.reduce((a,o)=>a+gwp(o),0)/r.opponents.length;}
 
-function getSwissStandings(){return T.players.map(p=>{const mp=matchPoints(p.id);return{...p,mp,omw:omw(p.id),gwp:gwp(p.id),ogw:ogw(p.id),record:getPlayerRecord(p.id)};}).sort((a,b)=>(b.mp-a.mp)||(b.omw-a.omw)||(b.gwp-a.gwp)||(b.ogw-a.ogw));}
+// Punti ottenuti da pid negli scontri diretti contro i giocatori di group (mini-classifica tra pari merito)
+function h2hPoints(pid,group){let pts=0;for(const r of T.rounds)for(const m of r.pairings){if(m.rest||m.bye||m.p1wins==null)continue;const is1=m.p1===pid;if(!is1&&m.p2!==pid)continue;if(!group.has(is1?m.p2:m.p1))continue;const mg=is1?m.p1wins:m.p2wins,og=is1?m.p2wins:m.p1wins;pts+=mg>og?3:mg===og?1:0;}return pts;}
+// Round robin: a parità di punti decide lo scontro diretto. In un tutti-contro-tutti OMW%/GW%/OGW% sono identici
+// per costruzione tra giocatori a pari punti, quindi senza H2H deciderebbe l'ordine di iscrizione. Swiss: MTR puro.
+function getSwissStandings(){
+  const st=T.players.map(p=>{const mp=matchPoints(p.id);return{...p,mp,h2h:0,omw:omw(p.id),gwp:gwp(p.id),ogw:ogw(p.id),record:getPlayerRecord(p.id)};});
+  if(T.mode==='roundrobin'){const byMp=new Map();st.forEach(p=>{if(!byMp.has(p.mp))byMp.set(p.mp,new Set());byMp.get(p.mp).add(p.id);});st.forEach(p=>{p.h2h=h2hPoints(p.id,byMp.get(p.mp));});}
+  return st.sort((a,b)=>(b.mp-a.mp)||(b.h2h-a.h2h)||(b.omw-a.omw)||(b.gwp-a.gwp)||(b.ogw-a.ogw));
+}
 
 function getPlayerMatches(pid) {
   const matches = [];
@@ -939,8 +970,30 @@ function hadBye(pid){for(const r of T.rounds)for(const m of r.pairings)if(m.bye&
 function generateDraftR1(){const o=T.draftOrder.filter(id=>{const p=T.players.find(p=>p.id===id);return p&&!p.dropped;});const n=o.length,half=Math.floor(n/2),pairs=[];for(let i=0;i<half;i++)pairs.push({p1:o[i],p2:o[i+half],p1wins:null,p2wins:null,draws:0,bye:false,rest:false,forfeit:false});if(n%2===1)pairs.push({p1:o[n-1],p2:null,p1wins:2,p2wins:0,draws:0,bye:true,rest:false,forfeit:false});return pairs;}
 function shuffleBrackets(players){const groups=new Map();players.forEach(p=>{const mp=matchPoints(p.id);if(!groups.has(mp))groups.set(mp,[]);groups.get(mp).push(p);});const brackets=[...groups.keys()].sort((a,b)=>b-a);const result=[];for(const mp of brackets){const g=groups.get(mp);for(let i=g.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[g[i],g[j]]=[g[j],g[i]];}result.push(...g);}return result;}
 function generateSwiss(){const active=getActivePlayers(),n=active.length;if(n<2)return[];const sorted=shuffleBrackets(active);let bye=null,pool=sorted.map(p=>p.id);if(n%2===1){for(let i=pool.length-1;i>=0;i--){if(!hadBye(pool[i])){bye=pool[i];pool.splice(i,1);break;}}if(!bye)bye=pool.pop();}const pairs=pairPool(pool);/* pairPool non fallisce mai con pool pari: ogni abbinamento è ammesso (i rematch sono solo penalizzati) */if(bye)pairs.push({p1:bye,p2:null,p1wins:2,p2wins:0,draws:0,bye:true,rest:false,forfeit:false});return pairs;}
-function pairScore(pairs){let s=0;for(const m of pairs){const rematch=havePlayed(m.p1,m.p2)?1:0;s+=rematch*1000+Math.abs(matchPoints(m.p1)-matchPoints(m.p2));}return s;}
-function pairPool(pool){if(pool.length===0)return[];if(pool.length===2)return[{p1:pool[0],p2:pool[1],p1wins:null,p2wins:null,draws:0,bye:false,rest:false,forfeit:false}];const first=pool[0],rest=pool.slice(1);const fp=matchPoints(first);const cands=[...rest].sort((a,b)=>{const ra=havePlayed(first,a)?1:0,rb=havePlayed(first,b)?1:0;if(ra!==rb)return ra-rb;const da=Math.abs(matchPoints(a)-fp),db=Math.abs(matchPoints(b)-fp);if(da!==db)return da-db;return rest.indexOf(a)-rest.indexOf(b);});let best=null,bestScore=Infinity;for(const c of cands){const sub=pairPool(rest.filter(id=>id!==c));if(sub){const candidate=[{p1:first,p2:c,p1wins:null,p2wins:null,draws:0,bye:false,rest:false,forfeit:false},...sub];const sc=pairScore(candidate);if(sc<bestScore){best=candidate;bestScore=sc;if(sc===0)break;}}}return best;}
+// Matching a costo minimo: costo coppia = rematch×1000 + |differenza match points|.
+// Il primo giocatore rimasto (ordine del pool) si abbina al candidato migliore; a parità vince l'ordine del pool,
+// così la casualità di shuffleBrackets resta. Memo sul sottoinsieme rimasto (bitmask): O(2^n·n) invece della
+// ricerca esaustiva O(n!!), che con 16 giocatori impiegava decine di secondi per round.
+function pairPool(pool){
+  const n=pool.length;if(n===0)return[];
+  const mp=pool.map(id=>matchPoints(id));
+  const cost=pool.map((a,i)=>pool.map((b,j)=>(havePlayed(a,b)?1000:0)+Math.abs(mp[i]-mp[j])));
+  const memo=new Map();
+  function solve(mask){
+    if(mask===0)return{score:0};
+    if(memo.has(mask))return memo.get(mask);
+    let i=0;while(!(mask&(1<<i)))i++;
+    const rest=mask&~(1<<i),cands=[];
+    for(let j=i+1;j<n;j++)if(rest&(1<<j))cands.push(j);
+    cands.sort((a,b)=>(cost[i][a]-cost[i][b])||(a-b));
+    let best=null;
+    for(const j of cands){const sc=cost[i][j]+solve(rest&~(1<<j)).score;if(!best||sc<best.score){best={score:sc,i,j};if(sc===0)break;}}
+    memo.set(mask,best);return best;
+  }
+  const pairs=[];
+  for(let mask=(1<<n)-1;mask;){const b=solve(mask);pairs.push({p1:pool[b.i],p2:pool[b.j],p1wins:null,p2wins:null,draws:0,bye:false,rest:false,forfeit:false});mask&=~(1<<b.i)&~(1<<b.j);}
+  return pairs;
+}
 function generatePairings(){return T.currentRound===1?generateDraftR1():generateSwiss();}
 
 // ── DROP ──
@@ -948,12 +1001,13 @@ function dropPlayer(){const sel=$id('dropSel');if(!sel)return;const pid=parseInt
 
 // ── TIMER ──
 function fmtTimer(){const rem=TM.total-TM.seconds;const min=Math.floor(Math.abs(rem)/60),sec=Math.abs(rem)%60;return `${rem<0?'+':''}${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;}
-function startTimer(){if(TM.running)return;ensureAudio();acquireWakeLock();TM.running=true;TM.startedAt=Date.now()-TM.seconds*1000;save();TM.interval=setInterval(()=>{TM.seconds=Math.floor((Date.now()-TM.startedAt)/1000);const rem=TM.total-TM.seconds;const el=document.querySelector('.timer-display');if(el){el.textContent=fmtTimer();el.className='timer-display'+(rem<=300?' warning':'');}if(rem<=300&&rem>0&&!TM.firedWarning){TM.firedWarning=true;beep(2);vibrate([150,80,150]);toast('5 minuti al termine del round');save();}if(rem<=0&&!TM.firedExpired){TM.firedExpired=true;beep(4);vibrate([200,100,200,100,400]);toast('Tempo scaduto!');save();}if(rem<=-300&&!TM.firedOvertime){TM.firedOvertime=true;beep(4);vibrate([400,200,400]);toast('+5 turni extra scaduti!');save();}},1000);renderRound();}
+function startTimer(){if(TM.running)return;ensureAudio();acquireWakeLock();TM.running=true;TM.startedAt=Date.now()-TM.seconds*1000;save();TM.interval=setInterval(()=>{TM.seconds=Math.floor((Date.now()-TM.startedAt)/1000);const rem=TM.total-TM.seconds;const el=document.querySelector('.timer-display');if(el){el.textContent=fmtTimer();el.className='timer-display'+(rem<=300?' warning':'');}if(rem<=300&&rem>0&&!TM.firedWarning){TM.firedWarning=true;beep(2);vibrate([150,80,150]);toast('5 minuti al termine del round');save();}if(rem<=0&&!TM.firedExpired){TM.firedExpired=true;beep(4);vibrate([200,100,200,100,400]);toast('Tempo scaduto!');save();}if(rem<=-300&&!TM.firedOvertime){TM.firedOvertime=true;beep(4);vibrate([400,200,400]);toast('+5 minuti oltre il tempo');save();}},1000);renderRound();}
 function pauseTimer(){if(TM.running&&TM.startedAt)TM.seconds=Math.floor((Date.now()-TM.startedAt)/1000);TM.running=false;TM.startedAt=null;clearInterval(TM.interval);releaseWakeLock();save();renderRound();}
-function resetTimer(){TM.running=false;clearInterval(TM.interval);TM.seconds=0;TM.startedAt=null;TM.firedWarning=false;TM.firedExpired=false;TM.firedOvertime=false;releaseWakeLock();save();renderRound();}
+function clearTimerState(){TM.running=false;clearInterval(TM.interval);TM.seconds=0;TM.startedAt=null;TM.firedWarning=false;TM.firedExpired=false;TM.firedOvertime=false;releaseWakeLock();}
+function resetTimer(){clearTimerState();save();renderRound();}
 
 // ── ROUND ──
-function nextRound(){if(T.currentRound>=T.totalRounds){endTournament();return;}T.currentRound++;T.rounds.push({pairings:generatePairings(),locked:false});viewingRound=T.currentRound;TM.seconds=0;TM.running=false;TM.startedAt=null;TM.firedWarning=false;TM.firedExpired=false;TM.firedOvertime=false;clearInterval(TM.interval);releaseWakeLock();renderRound();updateStatus();save();}
+function nextRound(){if(T.currentRound>=T.totalRounds){endTournament();return;}T.currentRound++;T.rounds.push({pairings:generatePairings(),locked:false});viewingRound=T.currentRound;clearTimerState();renderRound();updateStatus();save();}
 function viewRound(n){const max=T.mode==='roundrobin'?T.totalRounds:T.currentRound;if(n>=1&&n<=max){viewingRound=n;renderRound();}}
 
 function renderStickyBar(done,tot,isRR){
@@ -988,36 +1042,37 @@ function renderRound(){
     const d1=p1.dropped?'dropped':'',d2=p2&&p2.dropped?'dropped':'';
     h+=`<div class="match-card ${flash} ${forf}" id="match-${viewingRound}-${i}"><div class="match-header"><span>Tavolo ${i+1}</span>${m.forfeit?'<span class="match-status-forfeit">Forfeit</span>':has?'<span class="match-status-done">Completato</span>':'<span>In attesa</span>'}</div>
       <div class="match-players"><div class="match-player ${w1} ${d1}">${esc(p1.name)}</div><div class="match-vs">vs</div><div class="match-player ${w2} ${d2}">${p2?esc(p2.name):'?'}</div></div>`;
-    if(canEdit&&!m.forfeit){if(has)h+=`<div class="match-result-display" onclick="editMatch(${viewingRound-1},${i})">${fmtRes(m)}<span>Tocca per modificare</span></div>`;else h+=isRR?rrBtns(i,m):swissBtns(i,m);}
+    if(canEdit&&!m.forfeit){if(has)h+=`<div class="match-result-display" role="button" tabindex="0" onclick="editMatch(${viewingRound-1},${i})">${fmtRes(m)}<span>Tocca per modificare</span></div>`;else h+=isRR?rrBtns(i,m):swissBtns(i,m);}
     else if(has)h+=`<div class="match-result-display" style="cursor:default;">${fmtRes(m)}</div>`;
     h+='</div>';
   }
   if(!T.ended){if(isRR)h+=renderRRActions();else if(viewingRound===T.currentRound)h+=renderSwissActions(round);}
-  C.innerHTML=h;lastScoredMatch=-1;
+  C.innerHTML=h;lastScoredMatch=-1;updateStatus();
   if(firstInc&&canEdit)setTimeout(()=>{const el=document.getElementById(firstInc);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},120);
 }
 
 function renderSwissActions(round){const allDone=round.pairings.every(m=>m.p1wins!==null);let h='<div class="card" style="padding:14px;">';const act=getActivePlayers();
   if(act.length>2){h+=`<div class="mb"><select id="dropSel" aria-label="Seleziona giocatore da ritirare"><option value="">Ritira giocatore...</option>${act.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div><button class="btn btn-danger btn-sm mb" onclick="dropPlayer()">Ritira dal torneo</button>`;}
-  if(allDone){h+=T.currentRound<T.totalRounds?'<button class="btn btn-primary" onclick="nextRound()">Round successivo →</button>':'<button class="btn btn-primary" onclick="endTournament()">Termina torneo</button>';}
+  if(allDone){h+=T.currentRound<T.totalRounds?'<button class="btn btn-primary" onclick="nextRound()">Round successivo →</button>':'<button class="btn btn-primary" onclick="confirmEnd()">Termina torneo</button>';}
   if(T.currentRound>1)h+=`<button class="btn btn-secondary mt" onclick="confirmUndo()">Annulla round</button>`;return h+'</div>';}
 function renderRRActions(){const allDone=T.rounds.every(r=>r.pairings.filter(m=>!m.rest).every(m=>m.p1wins!==null));let h='<div class="card" style="padding:14px;">';const act=getActivePlayers();
   if(act.length>2){h+=`<div class="mb"><select id="dropSel" aria-label="Seleziona giocatore da ritirare"><option value="">Ritira giocatore...</option>${act.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div><button class="btn btn-danger btn-sm mb" onclick="dropPlayer()">Ritira dal torneo</button>`;}
-  if(allDone)h+='<button class="btn btn-primary" onclick="endTournament()">Termina torneo</button>';
+  if(allDone)h+='<button class="btn btn-primary" onclick="confirmEnd()">Termina torneo</button>';
   else{const next=T.rounds.findIndex(r=>r.pairings.some(m=>!m.rest&&m.p1wins===null));if(next>=0&&next!==viewingRound-1)h+=`<button class="btn btn-secondary" onclick="viewRound(${next+1})">Vai a Round ${next+1}</button>`;}
   return h+'</div>';}
 
-function swissBtns(idx,m){const n1=T.players.find(p=>p.id===m.p1)?.name.split(' ')[0]||'?',n2=T.players.find(p=>p.id===m.p2)?.name.split(' ')[0]||'?';
+function swissBtns(idx,m){const n1=shortName(m.p1),n2=shortName(m.p2);
   const main=[[2,0,0,'2–0'],[2,1,0,'2–1'],[1,2,0,'1–2'],[0,2,0,'0–2']];
-  const more=[[1,0,0,'1–0'],[0,1,0,'0–1'],[1,1,0,'1–1'],[1,0,1,'1–0–1'],[0,1,1,'0–1–1'],[1,1,1,'1–1–1'],[0,0,1,'0–0–1']];
+  const more=[[1,0,0,'1–0'],[0,1,0,'0–1'],[1,1,0,'1–1'],[1,0,1,'1–0–1'],[0,1,1,'0–1–1'],[2,0,1,'2–0–1'],[0,2,1,'0–2–1'],[1,1,1,'1–1–1'],[0,0,1,'0–0–1']];
   const mkBtn=s=>`<button class="score-btn" onclick="setRes(${viewingRound-1},${idx},${s[0]},${s[1]},${s[2]})">${s[3]}</button>`;
   return `<div style="padding:4px 16px;font-size:0.72rem;color:var(--text-dim);text-align:center;font-weight:600;">${esc(n1)} — ${esc(n2)}</div>`
     +`<div class="match-score-btns">${main.map(mkBtn).join('')}<button class="score-btn draw-btn" onclick="setRes(${viewingRound-1},${idx},0,0,1)" title="Pareggio intenzionale (0 partite giocate, 1 punto a testa)">ID</button></div>`
     +`<details class="more-results"><summary aria-label="Mostra altri risultati per fine tempo">Altri risultati…<button class="score-info-btn" type="button" aria-label="Cosa significano i numeri?" onclick="event.preventDefault();event.stopPropagation();showScoreInfo();">?</button></summary><div class="match-score-btns">${more.map(mkBtn).join('')}</div></details>`;}
-function rrBtns(idx,m){const n1=T.players.find(p=>p.id===m.p1)?.name.split(' ')[0]||'?',n2=T.players.find(p=>p.id===m.p2)?.name.split(' ')[0]||'?';
+function rrBtns(idx,m){const n1=shortName(m.p1),n2=shortName(m.p2);
   return `<div class="match-score-btns"><button class="score-btn win-btn" onclick="setRes(${viewingRound-1},${idx},1,0,0)">${esc(n1)}</button><button class="score-btn win-btn" onclick="setRes(${viewingRound-1},${idx},0,1,0)">${esc(n2)}</button></div>`;}
 
-function fmtRes(m){if(m.bye)return'BYE';if(m.rest)return'Riposo';if(m.p1wins==null)return'—';if(m.forfeit){const w=m.p1wins>m.p2wins?T.players.find(p=>p.id===m.p1):T.players.find(p=>p.id===m.p2);return`${w?w.name.split(' ')[0]:'?'} (forfeit)`;}if(T.mode==='roundrobin'){const w=m.p1wins>m.p2wins?T.players.find(p=>p.id===m.p1):T.players.find(p=>p.id===m.p2);return`${w?w.name.split(' ')[0]:'?'} vince`;}if(m.p1wins===0&&m.p2wins===0&&m.draws>0)return'ID (patta)';return m.draws>0?`${m.p1wins} – ${m.p2wins} – ${m.draws}`:`${m.p1wins} – ${m.p2wins}`;}
+// Restituisce HTML (va in innerHTML): i nomi passano da esc()
+function fmtRes(m){if(m.bye)return'BYE';if(m.rest)return'Riposo';if(m.p1wins==null)return'—';const winner=()=>esc(shortName(m.p1wins>m.p2wins?m.p1:m.p2));if(m.forfeit)return`${winner()} (forfeit)`;if(T.mode==='roundrobin')return`${winner()} vince`;if(m.p1wins===0&&m.p2wins===0&&m.draws>0)return'ID (patta)';return m.draws>0?`${m.p1wins} – ${m.p2wins} – ${m.draws}`:`${m.p1wins} – ${m.p2wins}`;}
 
 function setRes(ri,mi,w1,w2,d){const m=T.rounds[ri].pairings[mi];m.p1wins=w1;m.p2wins=w2;m.draws=d;lastScoredMatch=mi;vibrate(50);renderRound();renderStandings();save();toast('Risultato salvato');}
 function editMatch(ri,mi){showModal('Modificare risultato?','Il risultato verrà resettato.',()=>{const m=T.rounds[ri].pairings[mi];m.p1wins=null;m.p2wins=null;m.draws=0;m.forfeit=false;renderRound();renderStandings();save();});}
@@ -1058,9 +1113,13 @@ function openAnnounce(){
   });
   $id('announceContent').innerHTML=h;
   $id('announceOverlay').classList.add('active');
+  const closeBtn=$id('announceOverlay').querySelector('.announce-actions button:last-child');if(closeBtn)closeBtn.focus();
 }
 function closeAnnounce(){$id('announceOverlay').classList.remove('active');}
-function copyText(t,msg){navigator.clipboard.writeText(t).then(()=>toast(msg)).catch(()=>{const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);toast(msg);});}
+function copyText(t,msg){
+  const fallback=()=>{let ok=false;try{const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();ok=document.execCommand('copy');document.body.removeChild(ta);}catch(e){}toast(ok?msg:'Copia non riuscita');};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(()=>toast(msg),fallback);else fallback();
+}
 function copyPairings(){
   const round=T.rounds[viewingRound-1];if(!round)return;
   let t=`⚔️ Round ${viewingRound} — Pairing\n${'─'.repeat(26)}\n`;
@@ -1073,17 +1132,21 @@ function copyPairings(){
   copyText(t,'Pairing copiati!');
 }
 
+function confirmEnd(){showModal('Terminare il torneo?','La classifica diventerà definitiva e i risultati non si potranno più modificare.',endTournament);}
 function confirmUndo(){showModal('Annullare il round?','Tornerai al round precedente.',undoRound);}
-function undoRound(){if(T.currentRound<=1)return;T.rounds.pop();T.currentRound--;T.ended=false;if(T.rounds.length)T.rounds[T.rounds.length-1].locked=false;T.players.forEach(p=>{if(p.droppedAtRound&&p.droppedAtRound>T.currentRound){p.dropped=false;p.droppedAtRound=null;}});viewingRound=T.currentRound;updateStatus();renderRound();renderStandings();save();toast('Round annullato');}
+function undoRound(){if(T.currentRound<=1)return;T.rounds.pop();T.currentRound--;T.ended=false;clearTimerState();if(T.rounds.length)T.rounds[T.rounds.length-1].locked=false;T.players.forEach(p=>{if(p.droppedAtRound&&p.droppedAtRound>T.currentRound){p.dropped=false;p.droppedAtRound=null;}});viewingRound=T.currentRound;updateStatus();renderRound();renderStandings();save();toast('Round annullato');}
 function endTournament(){T.ended=true;TM.running=false;clearInterval(TM.interval);releaseWakeLock();T.rounds.forEach(r=>r.locked=true);updateStatus();renderRound();renderStandings();save();switchTab('standings');celebrate();vibrate([100,60,100,60,250]);toast('Torneo concluso!');}
 function celebrate(){try{if(!document.body||document.getElementById('confettiWrap'))return;const wrap=document.createElement('div');wrap.id='confettiWrap';wrap.style.cssText='position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:500;';const colors=['#3d6b8e','#c4793c','#3a8a5c','#e8b13c','#c0453a','#8aa3b8'];for(let i=0;i<70;i++){const p=document.createElement('div');p.className='confetti-piece';p.style.left=Math.random()*100+'%';p.style.background=colors[i%colors.length];p.style.animationDuration=(2.4+Math.random()*1.8)+'s';p.style.animationDelay=(Math.random()*0.7)+'s';p.style.transform=`rotate(${Math.random()*360}deg)`;wrap.appendChild(p);}document.body.appendChild(wrap);setTimeout(()=>{if(wrap.parentNode)wrap.parentNode.removeChild(wrap);},5500);}catch(e){}}
 
 // ── STANDINGS ──
 function standingsAt(limit){const saved=T.rounds;T.rounds=saved.slice(0,limit);const st=getSwissStandings();T.rounds=saved;return st;}
+// Medaglie a fine torneo: i primi tre non ritirati (un drop resta in classifica ma non va sul podio)
+function medalsById(st){const m=new Map();if(T.ended)st.filter(p=>!p.dropped).slice(0,3).forEach((p,i)=>m.set(p.id,['🥇','🥈','🥉'][i]));return m;}
 function renderStandings(){
-  const isRR=T.mode==='roundrobin',st=getSwissStandings();let h='';
-  if(T.ended&&st.length>=3){
-    const[w1,w2,w3]=st;
+  const isRR=T.mode==='roundrobin',st=getSwissStandings(),medals=medalsById(st);let h='';
+  const podium=st.filter(p=>medals.has(p.id));
+  if(podium.length>=3){
+    const[w1,w2,w3]=podium;
     h+=`<div class="card text-center" style="border-color:var(--accent);border-width:2px;">
       <div style="font-family:'Fraunces',serif;font-weight:900;font-size:1.05rem;color:var(--accent-dark);">Torneo concluso</div>
       <div class="podium-wrap">
@@ -1101,27 +1164,37 @@ function renderStandings(){
   const cols=4+(deltas?1:0);
   h+=`<div class="card"><div class="card-title">Classifica${T.ended?' finale':''} <span class="mode-badge ${isRR?'rr':'swiss'}">${isRR?'BO1':'Swiss'}</span></div><div style="overflow-x:auto;margin:0 -4px;padding:0 4px;"><table class="standings-table"><thead><tr><th scope="col">#</th><th scope="col">Giocatore</th><th scope="col">${isRR?'W-L':'W-L-D'}</th><th scope="col">Pts</th>${deltas?'<th scope="col" aria-label="Variazione posizione">Δ</th>':''}</tr></thead><tbody>
     ${st.map((p,i)=>{
-      const rank=T.ended&&i<3?['🥇','🥈','🥉'][i]:i+1;
+      const rank=medals.get(p.id)||i+1;
       const rec=isRR?`${p.record.wins}-${p.record.losses}`:`${p.record.wins}-${p.record.losses}-${p.record.draws}`;
       let dCell='';
       if(deltas){const d=deltas.get(p.id)||0;dCell=`<td><span class="standings-delta ${d>0?'up':d<0?'down':'flat'}">${d>0?'▲'+d:d<0?'▼'+(-d):'–'}</span></td>`;}
-      return `<tr onclick="togglePlayer(${p.id})" class="${p.dropped?'dropped':''} ${i<3?'top3':''}"><td class="standings-rank">${rank}</td><td class="standings-name">${esc(p.name)}${p.dropped?' ✗':''}</td><td class="standings-record">${rec}</td><td>${p.mp}</td>${dCell}</tr>${expandedPlayer===p.id?`<tr><td colspan="${cols}" style="padding:0;">${renderDetail(p.id)}</td></tr>`:''}`;
+      return `<tr onclick="togglePlayer(${p.id})" tabindex="0" role="button" aria-expanded="${expandedPlayer===p.id}" class="${p.dropped?'dropped':''} ${i<3?'top3':''}"><td class="standings-rank">${rank}</td><td class="standings-name">${esc(p.name)}${p.dropped?' ✗':''}</td><td class="standings-record">${rec}</td><td>${p.mp}</td>${dCell}</tr>${expandedPlayer===p.id?`<tr><td colspan="${cols}" style="padding:0;">${renderDetail(p.id)}</td></tr>`:''}`;
     }).join('')}
     </tbody></table></div>
-    <div class="text-xs text-dim mt" style="text-align:center;">Tocca un giocatore per match e tiebreaker (Pts → OMW% → GW% → OGW%)</div></div>`;
+    <div class="text-xs text-dim mt" style="text-align:center;">Tocca un giocatore per match e tiebreaker (Pts → ${isRR?'scontri diretti → ':''}OMW% → GW% → OGW%)</div></div>`;
   if(T.started)h+=`<button class="share-btn" onclick="copyStandings()">📋 Copia classifica</button>`;
   h+=`<button class="btn btn-secondary mt" onclick="confirmReset()">Nuovo torneo</button>`;
   $id('standingsContent').innerHTML=h;
 }
 function togglePlayer(pid){expandedPlayer=expandedPlayer===pid?null:pid;renderStandings();}
 function renderDetail(pid){const ms=getPlayerMatches(pid);const tb=`<div class="player-detail-tb">OMW ${(omw(pid)*100).toFixed(1)}% · GW ${(gwp(pid)*100).toFixed(1)}% · OGW ${(ogw(pid)*100).toFixed(1)}%</div>`;if(!ms.length)return`<div class="player-detail"><div class="text-sm text-dim">Nessun match</div>${tb}</div>`;return`<div class="player-detail">${ms.map(m=>{const c=m.result==='W'?'var(--green)':m.result==='L'?'var(--red)':'var(--text-dim)';return`<div class="player-detail-match"><span>R${m.round} vs ${esc(m.opp)}</span><span style="color:${c};font-weight:700;">${m.score}</span></div>`;}).join('')}${tb}</div>`;}
-function copyStandings(){const isRR=T.mode==='roundrobin',st=getSwissStandings();let t=`${T.ended?'🏆 CLASSIFICA FINALE':'📊 Classifica'}\n${isRR?'Round Robin BO1':'Swiss'} · ${T.players.length} giocatori\n${'─'.repeat(26)}\n`;st.forEach((p,i)=>{const m=i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`;t+=isRR?`${m} ${p.name} — ${p.record.wins}W ${p.record.losses}L (${p.mp}pts)\n`:`${m} ${p.name} — ${p.record.wins}W ${p.record.losses}L ${p.record.draws}D (${p.mp}pts)\n`;});copyText(t,'Classifica copiata!');}
+function copyStandings(){const isRR=T.mode==='roundrobin',st=getSwissStandings();let t=`${T.ended?'🏆 CLASSIFICA FINALE':'📊 Classifica'}\n${isRR?'Round Robin BO1':'Swiss'} · ${T.players.length} giocatori\n${'─'.repeat(26)}\n`;const medals=medalsById(st);st.forEach((p,i)=>{const m=medals.get(p.id)||`${i+1}.`;t+=isRR?`${m} ${p.name} — ${p.record.wins}W ${p.record.losses}L (${p.mp}pts)\n`:`${m} ${p.name} — ${p.record.wins}W ${p.record.losses}L ${p.record.draws}D (${p.mp}pts)\n`;});copyText(t,'Classifica copiata!');}
 function confirmReset(){showModal('Nuovo torneo?','Tutti i dati verranno persi.',()=>{localStorage.removeItem('mtg-t');location.reload();});}
 
 // ── NAV + SWIPE ──
 function switchTab(tab,fromPop){$qsa('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$qsa('.screen').forEach(s=>s.classList.toggle('active',s.id===`screen-${tab}`));if(tab==='round'){if(!T.mode||T.mode==='swiss')viewingRound=T.currentRound||1;renderRound();}if(tab==='standings')renderStandings();if(tab==='draft')renderSeating();window.scrollTo(0,0);if(!fromPop&&(!history.state||history.state.tab!==tab))history.pushState({tab},'');}
 history.replaceState({tab:'setup'},'');
-window.addEventListener('popstate',e=>{if($id('modal').classList.contains('active'))closeModal();if($id('announceOverlay').classList.contains('active'))closeAnnounce();switchTab((e.state&&e.state.tab)||'setup',true);});
+window.addEventListener('popstate',e=>{
+  // Con modal/annuncio aperto il back chiude solo quello: la voce del tab corrente viene rimessa in cronologia
+  if($id('modal').classList.contains('active')||$id('announceOverlay').classList.contains('active')){
+    closeModal();closeAnnounce();
+    const cur=document.querySelector('.nav-btn.active');history.pushState({tab:(cur&&cur.dataset.tab)||'setup'},'');return;
+  }
+  let tab=(e.state&&e.state.tab)||'setup';
+  // La cronologia sopravvive al reload di "Nuovo torneo": non tornare su tab che richiedono un torneo avviato
+  if(((tab==='round'||tab==='standings')&&!T.started)||(tab==='draft'&&T.players.length<4))tab='setup';
+  switchTab(tab,true);
+});
 $qsa('.nav-btn').forEach(btn=>btn.addEventListener('click',()=>{const t=btn.dataset.tab;if(t==='setup'){switchTab(t);return;}if(t==='draft'&&T.players.length<4){toast('Servono almeno 4 giocatori');return;}if((t==='round'||t==='standings')&&!T.started){toast('Inizia prima il torneo');return;}switchTab(t);}));
 function updateStatus(){const bar=$id('statusBar'),sub=$id('headerSub');if(!T.started){bar.classList.add('hidden');sub.textContent='Nuovo torneo';return;}bar.classList.remove('hidden');const ml=T.mode==='roundrobin'?'Round Robin BO1':'Swiss';if(T.ended){bar.className='status status-ended';bar.textContent=`Concluso · ${ml} · ${T.players.length} giocatori`;sub.textContent='Torneo concluso';}else{bar.className='status status-active';const done=T.rounds.filter(r=>r.pairings.filter(m=>!m.rest).every(m=>m.p1wins!==null)).length;bar.textContent=`${ml} · ${done}/${T.totalRounds} round`;sub.textContent=`${ml} · Round ${viewingRound}`;}}
 

@@ -33,6 +33,7 @@ function mkEl() {
 }
 const elements = new Map();
 const store = new Map();
+const winListeners = {};
 const sandbox = {
   document: {
     getElementById: id => { if (!elements.has(id)) elements.set(id, mkEl()); return elements.get(id); },
@@ -40,7 +41,7 @@ const sandbox = {
     addEventListener() {}, createElement: () => mkEl(),
     body: mkEl(), activeElement: null,
   },
-  window: { addEventListener() {}, scrollTo() {} },
+  window: { addEventListener(type, fn) { (winListeners[type] ||= []).push(fn); }, scrollTo() {} },
   localStorage: {
     getItem: k => (store.has(k) ? store.get(k) : null),
     setItem: (k, v) => store.set(k, String(v)),
@@ -269,6 +270,149 @@ function reset(names, mode = 'swiss') {
   check('standingsAt: T.rounds ripristinato', S.T.rounds.length === 2);
   const now = app.getSwissStandings();
   check('standingsAt: dopo R2 C guida a 6pt', now[0].name === 'C' && now[0].mp === 6);
+}
+
+// ── 15. Pairing 16 giocatori: veloce anche con fasce dispari (patte), niente rematch evitabili ──
+{
+  const RES = [[2, 0, 0], [2, 1, 0], [1, 2, 0], [0, 2, 0], [1, 1, 1], [1, 0, 0], [0, 0, 1]];
+  let worst = 0, rematches = 0;
+  for (let trial = 0; trial < 10; trial++) {
+    reset(Array.from({ length: 16 }, (_, i) => 'P' + (i + 1)));
+    S.T.totalRounds = 5;
+    for (let r = 1; r <= 5; r++) {
+      S.T.currentRound = r;
+      const t0 = performance.now();
+      const pairs = app.generatePairings();
+      worst = Math.max(worst, performance.now() - t0);
+      rematches += pairs.filter(m => !m.bye && app.havePlayed(m.p1, m.p2)).length;
+      S.T.rounds.push({ pairings: pairs });
+      for (const m of pairs) { const x = RES[Math.floor(Math.random() * RES.length)]; [m.p1wins, m.p2wins, m.draws] = x; }
+    }
+  }
+  check('pairing 16 giocatori: ogni round < 250 ms', worst < 250, `peggiore ${worst.toFixed(0)} ms`);
+  check('pairing 16 giocatori: nessun rematch in 5 round', rematches === 0, `${rematches} rematch`);
+}
+
+// ── 16. Ordine al tavolo sempre allineato ai giocatori iscritti ──
+{
+  const T = S.T;
+  const fresh = () => { T.players = []; T.draftOrder = []; T.rounds = []; T.started = false; T.ended = false; T.currentRound = 0; S.playerIdCounter = 0; };
+  const add = n => { sandbox.document.getElementById('playerInput').value = n; app.addPlayer(); };
+
+  fresh(); ['A', 'B', 'C', 'D'].forEach(add);
+  app.goToSeating();
+  const before = T.draftOrder.slice();
+  add('E');
+  check('tavolo: giocatore aggiunto dopo va in coda, posizioni esistenti invariate',
+    T.draftOrder.length === 5 && T.draftOrder[4] === 5 && before.every((id, i) => T.draftOrder[i] === id));
+  let threw = false;
+  try { app.startWithMode('roundrobin'); } catch { threw = true; }
+  check('tavolo: RR con giocatore aggiunto dopo parte e lo include',
+    !threw && T.rounds.length === 5 && T.rounds.some(r => r.pairings.some(m => m.p1 === 5 || m.p2 === 5)));
+
+  fresh(); ['A', 'B', 'C', 'D', 'E'].forEach(add);
+  app.goToSeating(); app.removePlayer(3);
+  threw = false;
+  try { app.switchTab('draft'); } catch { threw = true; }
+  check('tavolo: rimozione dopo il tavolo non manda in crash la tab Tavolo', !threw && !T.draftOrder.includes(3) && T.draftOrder.length === 4);
+
+  fresh(); ['A', 'B', 'C', 'D'].forEach(add);
+  T.draftOrder = []; // tavolo mai aperto: si passa dalla nav invece che dal pulsante
+  app.startWithMode('swiss', 2, 50);
+  check('tavolo: avvio senza aver aperto il tavolo genera comunque R1 completo', T.rounds[0].pairings.length === 2);
+}
+
+// ── 17. Round robin: a parità di punti decide lo scontro diretto ──
+{
+  reset(['A', 'B', 'C', 'D', 'E'], 'roundrobin');
+  app.generateAllRRRounds();
+  // A (id 1) ed E (id 5) chiudono 3-1, E ha battuto A. A inserito prima di E: senza H2H vincerebbe A.
+  // Totali: A 3V, E 3V, C 2V, B 1V, D 1V.
+  const winners = { '1-2': 1, '1-3': 1, '1-4': 1, '1-5': 5, '2-5': 2, '3-5': 5, '4-5': 5, '2-3': 3, '2-4': 4, '3-4': 3 };
+  for (const r of S.T.rounds) for (const m of r.pairings) {
+    if (m.rest) continue;
+    const w = winners[[m.p1, m.p2].sort().join('-')];
+    m.p1wins = w === m.p1 ? 1 : 0; m.p2wins = w === m.p2 ? 1 : 0;
+  }
+  const st = app.getSwissStandings();
+  check('RR H2H: A ed E a pari punti, E davanti per lo scontro diretto',
+    st[0].mp === st[1].mp && st[0].name === 'E' && st[1].name === 'A', st.map(p => `${p.name}:${p.mp}`).join(','));
+}
+
+// ── 18. "Termina torneo" chiede conferma ──
+{
+  reset(['A', 'B', 'C', 'D']);
+  S.T.rounds = [{ pairings: [match(1, 2, 2, 0), match(3, 4, 2, 0)] }];
+  S.T.totalRounds = 1;
+  app.confirmEnd();
+  check('termina: dopo il tap il torneo non è ancora concluso', S.T.ended === false);
+  sandbox.document.getElementById('modalConfirm').onclick();
+  check('termina: concluso dopo la conferma', S.T.ended === true);
+}
+
+// ── 19. Nomi brevi non ambigui + risultati escapati ──
+{
+  reset(['Marco Rossi', 'Marco Bianchi', 'Luca Verdi', '<img/src=x/onerror=alert(1)>'], 'roundrobin');
+  check('nome breve: primo nome se unico', app.shortName(3) === 'Luca');
+  check('nome breve: nome intero se il primo nome è condiviso', app.shortName(1) === 'Marco Rossi' && app.shortName(2) === 'Marco Bianchi');
+  const html = app.fmtRes({ p1: 4, p2: 3, p1wins: 1, p2wins: 0, draws: 0 });
+  check('fmtRes: nome del vincitore escapato', !html.includes('<img') && html.includes('&lt;img'), html);
+  const btns = app.rrBtns(0, { p1: 1, p2: 2 });
+  check('pulsanti RR: i due Marco sono distinguibili', btns.includes('Marco Rossi') && btns.includes('Marco Bianchi'));
+}
+
+// ── 20. Barra di stato aggiornata dopo ogni risultato (anche in round robin) ──
+{
+  reset(['A', 'B', 'C', 'D', 'E'], 'roundrobin');
+  app.generateAllRRRounds(); S.T.totalRounds = 5; S.viewingRound = 1;
+  S.T.rounds[0].pairings.forEach((m, i) => { if (!m.rest) app.setRes(0, i, 1, 0, 0); });
+  const bar = sandbox.document.getElementById('statusBar').textContent;
+  check('status bar: 1/5 round dopo aver completato il round 1', bar.includes('1/5'), bar);
+}
+
+// ── 21. Undo round azzera il timer ──
+{
+  reset(['A', 'B', 'C', 'D']);
+  S.T.rounds = [{ pairings: [match(1, 2, 2, 0), match(3, 4, 2, 0)] }, { pairings: [app.mkM(1, 3), app.mkM(2, 4)] }];
+  S.T.currentRound = 2; S.viewingRound = 2;
+  S.TM.seconds = 1234; S.TM.firedWarning = true;
+  app.undoRound();
+  check('undo: timer azzerato', S.TM.seconds === 0 && S.TM.running === false && S.TM.firedWarning === false);
+}
+
+// ── 22. Podio e medaglie saltano i giocatori ritirati ──
+{
+  reset(['A', 'B', 'C', 'D', 'E']);
+  S.T.rounds = [{ pairings: [match(1, 2, 2, 0), match(3, 4, 2, 0), byeMatch(5)] }];
+  S.T.players.find(p => p.id === 1).dropped = true; // A in testa ma ritirato
+  S.T.ended = true;
+  const medals = app.medalsById(app.getSwissStandings());
+  check('podio: il ritirato non prende medaglia', !medals.has(1) && medals.size === 3);
+  S.T.ended = false;
+}
+
+// ── 23. Copia: fallback quando navigator.clipboard non esiste ──
+{
+  const toastEl = sandbox.document.getElementById('toast');
+  sandbox.document.execCommand = () => true;
+  app.copyText('x', 'Copiato!');
+  check('copia: fallback execCommand senza Clipboard API', toastEl.textContent === 'Copiato!', toastEl.textContent);
+  sandbox.document.execCommand = () => false;
+  app.copyText('x', 'Copiato!');
+  check('copia: messaggio di errore se anche il fallback fallisce', toastEl.textContent === 'Copia non riuscita');
+  delete sandbox.document.execCommand;
+}
+
+// ── 24. Back con un modal aperto: chiude il modal senza perdere il tab ──
+{
+  reset(['A', 'B', 'C', 'D']);
+  const modal = sandbox.document.getElementById('modal');
+  app.confirmEnd();
+  check('back: modal aperto prima del back', modal.classList.contains('active'));
+  sandbox.history.state = { tab: 'draft' }; // il browser è già tornato alla voce precedente
+  winListeners.popstate.forEach(fn => fn({ state: sandbox.history.state }));
+  check('back: modal chiuso e voce del tab corrente rimessa in cronologia',
+    !modal.classList.contains('active') && S.T.ended === false && sandbox.history.state.tab === 'setup');
 }
 
 // ── esito ──
