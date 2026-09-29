@@ -218,3 +218,19 @@ function archived(date, entrants, final, rounds, extra = {}) {
   const html = app.whoHtml('p_emo');
   check('validazione: l\'emoji arriva ma viene escapata', ok === 1 && !html.includes('<img') && html.includes('&lt;img'));
 }
+
+// ── 15. Due telefoni archiviano insieme lo stesso torneo: i giocatori nuovi non diventano profili doppi ──
+{
+  const archiveOn = () => {
+    resetLeague();
+    reset(['Nuovo Uno', 'Nuovo Due', 'Nuovo Tre', 'Nuovo Quattro']);
+    S.T.id = 't_condiviso';
+    S.T.rounds = [{ pairings: [match(1, 2, 2, 0), match(3, 4, 2, 1)] }];
+    S.T.ended = true; S.T.archivedId = null;
+    app.archiveCurrent();
+    return S.T.players.map(p => p.leagueId);
+  };
+  const a = archiveOn(), b = archiveOn(); // il secondo telefono non ha ancora ricevuto i profili del primo
+  check('archivio condiviso: stessi id per i giocatori nuovi su entrambi i telefoni', a.every(Boolean) && JSON.stringify(a) === JSON.stringify(b), JSON.stringify([a, b]));
+  check('archivio condiviso: id validi per il sync', a.every(id => app.validPlayerDoc(S.L.players[id])));
+}

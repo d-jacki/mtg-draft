@@ -117,10 +117,25 @@ async function syncNow(manual) {
     return false;
   } finally { syncState.running = false; renderSyncStatus(); }
 }
-// La lega ha un PIN master? (pubblico: dice solo se esiste). Facoltativo: con uno schema vecchio si ignora
+// La lega ha un PIN master? (pubblico: dice solo se esiste). Facoltativo: con uno schema vecchio si ignora.
+// Con lo schema recente dice anche l'ora del server: il timer condiviso parte da un istante assoluto (startedAt),
+// quindi un telefono con l'orologio avanti o indietro mostrerebbe un tempo diverso dagli altri.
 async function syncLeagueInfo() {
-  try { const out = await sbRpc('league_info', { p_league: syncCfg.league }); syncCfg.hasMaster = !!(out && out.master); saveSyncCfg(); } catch (e) {}
+  try {
+    const sent = Date.now();
+    const out = await sbRpc('league_info', { p_league: syncCfg.league });
+    const got = Date.now();
+    syncCfg.hasMaster = !!(out && out.master);
+    if (out && Number.isFinite(out.now) && got - sent < 3000) {
+      // Scarto sotto il secondo: è rumore della rete, gli orologi si considerano allineati
+      const off = Math.round(out.now - (sent + got) / 2);
+      syncCfg.clockOffset = Math.abs(off) < 1000 ? 0 : off;
+    }
+    saveSyncCfg();
+  } catch (e) {}
 }
+// Ora del server secondo questo telefono: la usa tutto ciò che conta il tempo da startedAt (timer del round)
+function clockNow() { return Date.now() + ((syncCfg && syncCfg.clockOffset) || 0); }
 // Sync ritardato dopo una modifica locale (più salvataggi ravvicinati = una sola chiamata)
 function syncSoon() { if (!syncConfigured()) return; clearTimeout(_syncTimer); _syncTimer = setTimeout(() => syncNow(false), 1500); }
 function renderSyncStatus() { if (typeof renderSyncBox === 'function') renderSyncBox(); }

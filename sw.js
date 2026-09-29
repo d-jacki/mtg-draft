@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mtg-draft-v21';
+const CACHE_NAME = 'mtg-draft-v22';
 const ASSETS = [
   './',
   './index.html',
@@ -38,13 +38,15 @@ self.addEventListener('activate', e => {
   );
 });
 
+// saved: scrittura in cache, da tenere viva con waitUntil (la copia va fatta subito, prima che la pagina legga il body)
 function fetchAndCache(request) {
   return fetch(request).then(response => {
+    let saved = Promise.resolve();
     if (response.ok) {
       const clone = response.clone();
-      caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+      saved = caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
     }
-    return response;
+    return { response, saved };
   });
 }
 
@@ -55,15 +57,16 @@ self.addEventListener('fetch', e => {
   // Tutto è self-hosted (font inclusi): le richieste cross-origin vanno lasciate al browser
   if (url.origin !== self.location.origin) return;
 
-  // Shell same-origin: stale-while-revalidate; fallback a index.html solo per navigazioni
+  // Shell same-origin: stale-while-revalidate; fallback a index.html solo per navigazioni.
+  // Senza waitUntil il browser può fermare il service worker appena servita la copia in cache, prima che quella
+  // nuova sia salvata: l'aggiornamento andrebbe perso.
+  const network = fetchAndCache(e.request).catch(() => null);
+  e.waitUntil(network.then(n => n && n.saved).catch(() => {}));
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      const network = fetchAndCache(e.request).catch(() => null);
-      return cached || network.then(r => {
-        if (r) return r;
-        if (e.request.mode === 'navigate') return caches.match('./index.html');
-        return Response.error();
-      });
-    })
+    caches.match(e.request).then(cached => cached || network.then(n => {
+      if (n) return n.response;
+      if (e.request.mode === 'navigate') return caches.match('./index.html');
+      return Response.error();
+    }))
   );
 });

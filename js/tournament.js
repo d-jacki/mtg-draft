@@ -11,6 +11,8 @@ function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<'
 function shuffle(a) { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function toast(m) { const t = $id('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2200); }
 function vibrate(ms) { if (navigator.vibrate) navigator.vibrate(ms); }
+// Movimento ridotto nelle impostazioni del telefono: niente coriandoli né scorrimento animato
+function reducedMotion() { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches; }
 
 // Wake lock: schermo acceso finché il timer corre
 let _wakeLock = null;
@@ -52,7 +54,7 @@ function shortName(pid) {
 function save() {
   localStorage.setItem('mtg-t', JSON.stringify({
     T, viewingRound, playerIdCounter,
-    tm: { seconds: TM.running && TM.startedAt ? Math.floor((Date.now() - TM.startedAt) / 1000) : TM.seconds, running: TM.running, total: TM.total, firedWarning: TM.firedWarning, firedExpired: TM.firedExpired, firedOvertime: TM.firedOvertime },
+    tm: { seconds: TM.running && TM.startedAt ? Math.floor((clockNow() - TM.startedAt) / 1000) : TM.seconds, running: TM.running, total: TM.total, firedWarning: TM.firedWarning, firedExpired: TM.firedExpired, firedOvertime: TM.firedOvertime },
     savedAt: Date.now()
   }));
   if (typeof livePublishSoon === 'function') livePublishSoon();
@@ -324,13 +326,14 @@ function generatePairings(){return T.currentRound===1?generateDraftR1():generate
 function dropPlayer(){const sel=$id('dropSel');if(!sel)return;const pid=parseInt(sel.value);if(!pid)return;const p=T.players.find(p=>p.id===pid);if(!p)return;const hint=T.mode==='roundrobin'?' Le partite non giocate diventeranno forfeit.':' Una partita aperta del round corrente diventerà forfeit.';showModal(`Ritirare ${p.name}?`,'I risultati precedenti restano.'+hint,()=>{if(!doOp({t:'drop',pid})){toast(`${p.name} è già ritirato`);return;}renderRound();renderStandings();save();toast(`${p.name} ritirato`);});}
 
 // ── TIMER ──
-// Il timer è condiviso: avvio, pausa e azzeramento sono operazioni; ogni telefono conta da sé partendo da startedAt
+// Il timer è condiviso: avvio, pausa e azzeramento sono operazioni; ogni telefono conta da sé partendo da startedAt,
+// un istante sull'orologio del server (clockNow in sync.js), così un telefono con l'ora sbagliata non va fuori tempo
 function fmtTimer(){const rem=TM.total-TM.seconds;const min=Math.floor(Math.abs(rem)/60),sec=Math.abs(rem)%60;return `${rem<0?'+':''}${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;}
-function timerTick(){TM.seconds=Math.floor((Date.now()-TM.startedAt)/1000);const rem=TM.total-TM.seconds;const el=document.querySelector('.timer-display');if(el){el.textContent=fmtTimer();el.className='timer-display'+(rem<=300?' warning':'');}if(rem<=300&&rem>0&&!TM.firedWarning){TM.firedWarning=true;beep(2);vibrate([150,80,150]);toast('5 minuti al termine del round');save();}if(rem<=0&&!TM.firedExpired){TM.firedExpired=true;beep(4);vibrate([200,100,200,100,400]);toast('Tempo scaduto!');save();}if(rem<=-300&&!TM.firedOvertime){TM.firedOvertime=true;beep(4);vibrate([400,200,400]);toast('+5 minuti oltre il tempo');save();}}
+function timerTick(){TM.seconds=Math.floor((clockNow()-TM.startedAt)/1000);const rem=TM.total-TM.seconds;const el=document.querySelector('.timer-display');if(el){el.textContent=fmtTimer();el.className='timer-display'+(rem<=300?' warning':'');}if(rem<=300&&rem>0&&!TM.firedWarning){TM.firedWarning=true;beep(2);vibrate([150,80,150]);toast('5 minuti al termine del round');save();}if(rem<=0&&!TM.firedExpired){TM.firedExpired=true;beep(4);vibrate([200,100,200,100,400]);toast('Tempo scaduto!');save();}if(rem<=-300&&!TM.firedOvertime){TM.firedOvertime=true;beep(4);vibrate([400,200,400]);toast('+5 minuti oltre il tempo');save();}}
 // Allinea il conteggio (interval e wake lock) a TM.running, comunque sia cambiato
 function timerEnsure(){if(TM.running&&TM.startedAt&&!TM.interval){acquireWakeLock();TM.interval=setInterval(timerTick,1000);}else if(!TM.running&&TM.interval){clearInterval(TM.interval);TM.interval=null;releaseWakeLock();}}
-function startTimer(){if(TM.running)return;ensureAudio();doOp({t:'timer',round:T.currentRound,running:true,seconds:TM.seconds,startedAt:Date.now()-TM.seconds*1000});save();renderRound();}
-function pauseTimer(){const s=TM.running&&TM.startedAt?Math.floor((Date.now()-TM.startedAt)/1000):TM.seconds;doOp({t:'timer',round:T.currentRound,running:false,seconds:s,startedAt:null});save();renderRound();}
+function startTimer(){if(TM.running)return;ensureAudio();doOp({t:'timer',round:T.currentRound,running:true,seconds:TM.seconds,startedAt:clockNow()-TM.seconds*1000});save();renderRound();}
+function pauseTimer(){const s=TM.running&&TM.startedAt?Math.floor((clockNow()-TM.startedAt)/1000):TM.seconds;doOp({t:'timer',round:T.currentRound,running:false,seconds:s,startedAt:null});save();renderRound();}
 function clearTimerState(){TM.running=false;clearInterval(TM.interval);TM.interval=null;TM.seconds=0;TM.startedAt=null;TM.firedWarning=false;TM.firedExpired=false;TM.firedOvertime=false;releaseWakeLock();}
 function resetTimer(){doOp({t:'timer',round:T.currentRound,running:false,seconds:0,startedAt:null,reset:true});save();renderRound();}
 
@@ -452,7 +455,7 @@ function renderRound(keepScroll){
   }
   if(!T.ended){if(isRR)h+=renderRRActions();else if(viewingRound===T.currentRound)h+=renderSwissActions(round);}
   C.innerHTML=h;lastScoredMatch=-1;updateStatus();
-  if(firstInc&&canEdit&&!keepScroll)setTimeout(()=>{const el=document.getElementById(firstInc);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},120);
+  if(firstInc&&canEdit&&!keepScroll)setTimeout(()=>{const el=document.getElementById(firstInc);if(el)el.scrollIntoView({behavior:reducedMotion()?'auto':'smooth',block:'center'});},120);
 }
 
 function renderSwissActions(round){const allDone=round.pairings.every(m=>m.p1wins!==null);let h='<div class="card" style="padding:14px;">';const act=getActivePlayers();
@@ -544,7 +547,7 @@ function undoRound(){if(!doOp({t:'undo',from:T.currentRound}))return;viewingRoun
 function endTournament(){if(!doOp({t:'end'}))return;const archived=archiveCurrent();updateStatus();renderRound();renderStandings();save();switchTab('standings');celebrate();vibrate([100,60,100,60,250]);toast(archived?'🏆 Torneo concluso e salvato nella lega':'Torneo concluso!');}
 // L'id in archivio è quello del torneo: se due telefoni che lo gestiscono insieme lo salvano, resta un solo documento
 function archiveCurrent(){if(!T.ended||T.archivedId)return false;try{const t=archiveTournament();doOp({t:'archived',id:t.id,lids:Object.fromEntries(T.players.map(p=>[p.id,p.leagueId]))});save();return true;}catch(e){console.error(e);toast('Errore nel salvataggio nello storico');return false;}}
-function celebrate(){try{if(!document.body||document.getElementById('confettiWrap'))return;const wrap=document.createElement('div');wrap.id='confettiWrap';wrap.style.cssText='position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:500;';const colors=['#3d6b8e','#c4793c','#3a8a5c','#e8b13c','#c0453a','#8aa3b8'];for(let i=0;i<70;i++){const p=document.createElement('div');p.className='confetti-piece';p.style.left=Math.random()*100+'%';p.style.background=colors[i%colors.length];p.style.animationDuration=(2.4+Math.random()*1.8)+'s';p.style.animationDelay=(Math.random()*0.7)+'s';p.style.transform=`rotate(${Math.random()*360}deg)`;wrap.appendChild(p);}document.body.appendChild(wrap);setTimeout(()=>{if(wrap.parentNode)wrap.parentNode.removeChild(wrap);},5500);}catch(e){}}
+function celebrate(){try{if(!document.body||document.getElementById('confettiWrap')||reducedMotion())return;const wrap=document.createElement('div');wrap.id='confettiWrap';wrap.style.cssText='position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:500;';const colors=['#3d6b8e','#c4793c','#3a8a5c','#e8b13c','#c0453a','#8aa3b8'];for(let i=0;i<70;i++){const p=document.createElement('div');p.className='confetti-piece';p.style.left=Math.random()*100+'%';p.style.background=colors[i%colors.length];p.style.animationDuration=(2.4+Math.random()*1.8)+'s';p.style.animationDelay=(Math.random()*0.7)+'s';p.style.transform=`rotate(${Math.random()*360}deg)`;wrap.appendChild(p);}document.body.appendChild(wrap);setTimeout(()=>{if(wrap.parentNode)wrap.parentNode.removeChild(wrap);},5500);}catch(e){}}
 
 // ── STANDINGS ──
 function standingsAt(limit){const saved=T.rounds;T.rounds=saved.slice(0,limit);const st=getSwissStandings();T.rounds=saved;return st;}

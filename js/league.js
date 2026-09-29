@@ -91,8 +91,8 @@ function findPlayerByName(name) { const n = String(name).trim().toLowerCase(); r
 function leagueName(id) { const p = resolvePlayer(id); return p ? p.name : '?'; }
 // HTML: l'emoji è un testo libero del documento, va escapato come il nome
 function leagueEmoji(id) { const p = resolvePlayer(id); return esc((p && p.emoji) || '🙂'); }
-function createPlayer(name, emoji) {
-  const p = { id: uid('p'), name: String(name).trim(), emoji: emoji || PLAYER_EMOJIS[Math.floor(Math.random() * PLAYER_EMOJIS.length)], createdAt: Date.now() };
+function createPlayer(name, emoji, id) {
+  const p = { id: id || uid('p'), name: String(name).trim(), emoji: emoji || PLAYER_EMOJIS[Math.floor(Math.random() * PLAYER_EMOJIS.length)], createdAt: Date.now() };
   L.players[p.id] = touch(p);
   return p;
 }
@@ -122,7 +122,12 @@ function archiveTournament() {
   const map = {};
   for (const p of T.players) {
     let lid = p.leagueId && resolvePlayer(p.leagueId) ? canonicalId(p.leagueId) : null;
-    if (!lid) { const ex = findPlayerByName(p.name); lid = ex ? ex.id : createPlayer(p.name).id; }
+    if (!lid) {
+      // Giocatore nuovo: id ricavato dagli id del torneo e del giocatore nel torneo, non casuale. Se due telefoni che gestiscono
+      // insieme il torneo lo archiviano nello stesso momento creano lo stesso profilo invece di due doppi.
+      const ex = findPlayerByName(p.name), did = T.id ? `p_${T.id}_${p.id}` : null;
+      lid = ex ? ex.id : did && L.players[did] ? canonicalId(did) : createPlayer(p.name, null, did).id;
+    }
     p.leagueId = lid; map[p.id] = lid;
   }
   const st = getSwissStandings();

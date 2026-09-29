@@ -9,5 +9,6 @@ await import('./league.test.mjs');
 await import('./sync.test.mjs');
 await import('./live.test.mjs');
 await import('./admin.test.mjs');
+await import('./sw.test.mjs');
 
 process.exit(summary() ? 1 : 0);

@@ -6,9 +6,9 @@ import { sandbox } from './harness.mjs';
 
 export const LEAGUE = '11111111-2222-3333-4444-555555555555';
 // seq: contatore del server assegnato a ogni scrittura di league_docs; noSeq = schema senza la colonna seq
-export const server = { rows: new Map(), live: null, history: [], pin: '1234', master: null, calls: [], failures: 0, legacy: false, seq: 0, noSeq: false };
+export const server = { rows: new Map(), live: null, history: [], pin: '1234', master: null, calls: [], failures: 0, legacy: false, seq: 0, noSeq: false, clock: 0 };
 
-export function resetServer() { server.rows.clear(); server.live = null; server.history = []; server.master = null; server.calls = []; server.failures = 0; server.legacy = false; server.seq = 0; server.noSeq = false; }
+export function resetServer() { server.rows.clear(); server.live = null; server.history = []; server.master = null; server.calls = []; server.failures = 0; server.legacy = false; server.seq = 0; server.noSeq = false; server.clock = 0; }
 // Scrittura sul torneo live + copia in cronologia (in Postgres lo fa il trigger league_live_log)
 export function setLive(live) {
   server.live = live;
@@ -61,7 +61,8 @@ sandbox.fetch = async (url, opts = {}) => {
     rows = rows.sort((a, b) => b.rev - a.rev).slice(0, Number(q.get('limit') || 1000));
     return reply(200, rows.map(h => pick(h, q.get('select'))));
   }
-  if (u.pathname === '/rest/v1/rpc/league_info') return reply(200, { master: !!server.master });
+  // clock: di quanto l'orologio del server è avanti rispetto a quello del telefono
+  if (u.pathname === '/rest/v1/rpc/league_info') return reply(200, { master: !!server.master, now: Date.now() + server.clock });
   if (u.pathname === '/rest/v1/rpc/league_verify_master') {
     if (server.failures >= 10) return reply(200, { error: 'Troppi PIN sbagliati: riprova tra 15 minuti' });
     if (!server.master) return reply(200, { error: 'Questa lega non ha un PIN master (vedi supabase/schema.sql)' });

@@ -285,3 +285,25 @@ section('Live: dati da fuori e Realtime');
   app.stopLive();
   delete sandbox.WebSocket; delete sandbox.document.visibilityState;
 }
+
+// ── 9. Timer su telefoni con l'orologio sbagliato: si conta sull'ora del server ──
+{
+  resetServer(); connect('');
+  server.clock = 2 * 60e3; // questo telefono è 2 minuti indietro
+  await app.syncNow(false);
+  check('orologio: scarto dal server misurato', Math.abs(S.syncCfg.clockOffset - 120000) < 500, S.syncCfg.clockOffset);
+  tournament();
+  const serverNow = Date.now() + 120000;
+  const snap = { ...app.liveSnapshot(), id: 't_orologio', timer: { total: 3000, running: true, seconds: 0, startedAt: serverNow - 60500 } };
+  check('orologio: il timer di chi segue coincide con quello di chi l\'ha avviato', app.liveTimerText(snap) === '49:00', app.liveTimerText(snap));
+  app.liveLoadState(snap);
+  check('orologio: anche nel torneo gestito', S.TM.seconds === 60, S.TM.seconds);
+  app.clearTimerState();
+  S.TM.seconds = 0; app.startTimer();
+  check('orologio: avviando, startedAt è sull\'ora del server', Math.abs(S.TM.startedAt - serverNow) < 1000);
+  app.pauseTimer(); app.clearTimerState();
+  server.clock = 300;
+  await app.syncNow(false);
+  check('orologio: scarti sotto il secondo ignorati', S.syncCfg.clockOffset === 0);
+  server.clock = 0; app.stopLive();
+}

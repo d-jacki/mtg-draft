@@ -205,7 +205,7 @@ function liveLoadState(d) {
   TM.total = t.total || TM.total;
   TM.running = !!t.running && !!t.startedAt && !d.ended;
   TM.startedAt = TM.running ? t.startedAt : null;
-  TM.seconds = TM.running ? Math.max(0, Math.floor((Date.now() - t.startedAt) / 1000)) : (t.seconds || 0);
+  TM.seconds = TM.running ? Math.max(0, Math.floor((clockNow() - t.startedAt) / 1000)) : (t.seconds || 0);
   // Le soglie già passate non suonano di nuovo
   const rem = TM.total - TM.seconds;
   TM.firedWarning = rem <= 300; TM.firedExpired = rem <= 0; TM.firedOvertime = rem <= -300;
@@ -382,7 +382,7 @@ function withLiveTournament(d, fn) {
 function liveTimerText(d) {
   const t = d.timer;
   if (!t || d.mode === 'roundrobin' || d.ended) return '';
-  const secs = t.running && t.startedAt ? Math.floor((Date.now() - t.startedAt) / 1000) : t.seconds || 0;
+  const secs = t.running && t.startedAt ? Math.floor((clockNow() - t.startedAt) / 1000) : t.seconds || 0;
   const rem = t.total - secs, m = Math.floor(Math.abs(rem) / 60), s = Math.abs(rem) % 60;
   return `${rem < 0 ? '+' : ''}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}${t.running ? '' : ' ⏸'}`;
 }

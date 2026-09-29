@@ -245,14 +245,17 @@ create trigger league_live_log after insert or update on public.league_live
   for each row execute function public.league_live_log();
 
 -- ── PIN master ──
--- La lega ha un PIN master? Dice solo se esiste, mai quale sia.
+-- La lega ha un PIN master? Dice solo se esiste, mai quale sia. now = ora del server in millisecondi: l'app la usa
+-- per contare il timer condiviso sullo stesso orologio anche se un telefono ha l'ora sbagliata.
 create or replace function public.league_info(p_league uuid)
 returns jsonb
 language sql
 security definer
 set search_path = public, extensions
 as $$
-  select jsonb_build_object('master', admin_pin_hash is not null) from leagues where id = p_league;
+  select jsonb_build_object('master', admin_pin_hash is not null,
+                            'now', (extract(epoch from clock_timestamp()) * 1000)::bigint)
+  from leagues where id = p_league;
 $$;
 revoke all on function public.league_info(uuid) from public;
 grant execute on function public.league_info(uuid) to anon, authenticated;

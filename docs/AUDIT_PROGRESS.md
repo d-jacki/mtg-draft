@@ -47,3 +47,4 @@ Eseguirli prima di ogni push (vedi README).
 - **Dati da fuori**: documenti della lega e stato live validati (id, numeri) prima di finire in innerHTML/onclick; emoji escapata.
 - **Realtime**: gli eventi di un WebSocket già sostituito non staccano più quello nuovo.
 - **Schema**: advisory lock per lega nelle funzioni con PIN (tentativi contati in modo atomico, seq visibili in ordine).
+- **Bassa priorità** (secondo giro): service worker con `waitUntil` sull'aggiornamento in background e controllo aggiornamenti ogni 30 minuti; id deterministici per i giocatori nuovi archiviati (niente profili doppi se due telefoni chiudono insieme); timer contato sull'ora del server (`league_info.now`, schema da rilanciare); `prefers-reduced-motion` su tutte le animazioni, coriandoli e scorrimento.

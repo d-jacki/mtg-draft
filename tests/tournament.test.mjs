@@ -331,3 +331,17 @@ section('Torneo');
   check('back: modal chiuso e voce del tab corrente rimessa in cronologia',
     !modal.classList.contains('active') && S.T.ended === false && sandbox.history.state.tab === 'setup');
 }
+
+// ── Movimento ridotto: niente coriandoli ──
+{
+  const body = sandbox.document.body, orig = body.appendChild, getEl = sandbox.document.getElementById;
+  let added = 0; body.appendChild = () => { added++; };
+  sandbox.document.getElementById = id => (id === 'confettiWrap' ? null : getEl(id)); // nessun coriandolo già a schermo
+  sandbox.matchMedia = q => ({ matches: q.includes('reduce') });
+  app.celebrate();
+  check('movimento ridotto: niente coriandoli', added === 0);
+  sandbox.matchMedia = () => ({ matches: false });
+  app.celebrate();
+  check('movimento normale: coriandoli', added === 1);
+  body.appendChild = orig; sandbox.document.getElementById = getEl; delete sandbox.matchMedia;
+}
