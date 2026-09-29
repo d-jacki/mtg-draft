@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#3d6b8e">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="MTG Draft">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/svg+xml" href="icon.svg">
@@ -37,7 +37,7 @@
     <div class="card-title">Giocatori</div>
     <div style="display:flex;gap:8px;">
       <input type="text" id="playerInput" placeholder="Nome giocatore" autocomplete="off" maxlength="40" aria-label="Nome giocatore" />
-      <button class="btn btn-primary btn-sm" style="width:auto;min-width:56px;" onclick="addPlayer()" aria-label="Aggiungi giocatore">+</button>
+      <button class="btn btn-primary btn-sm btn-add" onclick="addPlayer()" aria-label="Aggiungi giocatore">+</button>
     </div>
     <div id="rosterChips"></div>
     <div id="playerList" class="mt"></div>

@@ -474,7 +474,7 @@ function renderStandings(){
       const rec=isRR?`${p.record.wins}-${p.record.losses}`:`${p.record.wins}-${p.record.losses}-${p.record.draws}`;
       let dCell='';
       if(deltas){const d=deltas.get(p.id)||0;dCell=`<td><span class="standings-delta ${d>0?'up':d<0?'down':'flat'}">${d>0?'▲'+d:d<0?'▼'+(-d):'–'}</span></td>`;}
-      return `<tr onclick="togglePlayer(${p.id})" tabindex="0" role="button" aria-expanded="${expandedPlayer===p.id}" class="${p.dropped?'dropped':''} ${i<3?'top3':''}"><td class="standings-rank">${rank}</td><td class="standings-name">${esc(p.name)}${p.dropped?' ✗':''} <span class="who-titles">${leagueTitles(tournamentLid(p))}</span></td><td class="standings-record">${rec}</td><td>${p.mp}</td>${dCell}</tr>${expandedPlayer===p.id?`<tr><td colspan="${cols}" style="padding:0;">${renderDetail(p.id)}</td></tr>`:''}`;
+      return `<tr onclick="togglePlayer(${p.id})" tabindex="0" role="button" aria-expanded="${expandedPlayer===p.id}" class="${p.dropped?'dropped':''} ${i<3?'top3':''}"><td class="standings-rank">${rank}</td><td class="standings-name">${esc(p.name)}${p.dropped?' ✗':''} <span class="who-titles">${leagueTitles(tournamentLid(p))}</span></td><td class="standings-record">${rec}</td><td>${p.mp}</td>${dCell}</tr>${expandedPlayer===p.id?`<tr><td colspan="${cols}" class="detail-cell" style="padding:0;">${renderDetail(p.id)}</td></tr>`:''}`;
     }).join('')}
     </tbody></table></div>
     <div class="text-xs text-dim mt" style="text-align:center;">Tocca un giocatore per match e tiebreaker (Pts → ${isRR?'scontri diretti → ':''}OMW% → GW% → OGW%)</div></div>`;

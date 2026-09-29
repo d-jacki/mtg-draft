@@ -55,7 +55,7 @@ function renderChampionship() {
     <table class="standings-table league-table"><thead><tr><th scope="col">#</th><th scope="col">Giocatore</th><th scope="col" title="Tornei giocati">T</th><th scope="col" title="Vittorie">V</th><th scope="col">Pts</th></tr></thead><tbody>
     ${rows.map((r, i) => `<tr onclick="openProfile('${r.id}')" tabindex="0" role="button" class="${i < 3 ? 'top3' : ''}"><td class="standings-rank">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</td><td>${whoHtml(r.id, { titles: true })}</td><td>${r.played}</td><td>${r.wins}</td><td class="standings-record">${r.points}</td></tr>`).join('')}
     </tbody></table>
-    <div class="text-xs text-dim mt" style="line-height:1.55;">${n} tornei in stagione. Punti per torneo: 1 per ogni giocatore che ti arriva dietro + 1 di presenza + 2 al vincitore. Chi si ritira prende solo la presenza.</div></div>`;
+    <div class="text-xs text-dim mt" style="line-height:1.55;">${n} ${n === 1 ? 'torneo' : 'tornei'} in stagione. Punti per torneo: 1 per ogni giocatore che ti arriva dietro + 1 di presenza + 2 al vincitore. Chi si ritira prende solo la presenza.</div></div>`;
 }
 
 function sparkline(history) {
@@ -104,8 +104,8 @@ function renderH2H() {
 function renderRoster() {
   const list = leaguePlayers().sort((a, b) => a.name.localeCompare(b.name, 'it'));
   return `<div class="card"><div class="card-title">Giocatori</div>
-    <div style="display:flex;gap:8px;" class="mb"><input type="text" id="newLeaguePlayer" placeholder="Nuovo giocatore" maxlength="40" autocomplete="off" aria-label="Nome nuovo giocatore" onkeydown="if(event.key==='Enter')addLeaguePlayer()"><button class="btn btn-primary btn-sm" style="width:auto;min-width:56px;" onclick="addLeaguePlayer()" aria-label="Aggiungi alla lega">+</button></div>
-    ${list.length ? list.map(p => { const s = playerStats(p.id); return `<button class="history-item" onclick="openProfile('${p.id}')"><span class="roster-emoji" aria-hidden="true">${esc(p.emoji || '🙂')}</span><div class="history-main"><div class="history-set">${esc(p.name)} <span class="who-titles">${leagueTitles(p.id)}</span></div><div class="text-xs text-dim">${s.tournaments ? `${s.tournaments} tornei · Elo ${s.elo}` : 'Nessun torneo'}</div></div><span class="history-chev" aria-hidden="true">›</span></button>`; }).join('') : '<div class="text-sm text-dim">Nessun giocatore. Si aggiungono da qui o in automatico alla fine del primo torneo.</div>'}
+    <div style="display:flex;gap:8px;" class="mb"><input type="text" id="newLeaguePlayer" placeholder="Nuovo giocatore" maxlength="40" autocomplete="off" aria-label="Nome nuovo giocatore" onkeydown="if(event.key==='Enter')addLeaguePlayer()"><button class="btn btn-primary btn-sm btn-add" onclick="addLeaguePlayer()" aria-label="Aggiungi alla lega">+</button></div>
+    ${list.length ? list.map(p => { const s = playerStats(p.id); return `<button class="history-item" onclick="openProfile('${p.id}')"><span class="roster-emoji" aria-hidden="true">${esc(p.emoji || '🙂')}</span><div class="history-main"><div class="history-set">${esc(p.name)} <span class="who-titles">${leagueTitles(p.id)}</span></div><div class="text-xs text-dim">${s.tournaments ? `${s.tournaments} ${s.tournaments === 1 ? 'torneo' : 'tornei'} · Elo ${s.elo}` : 'Nessun torneo'}</div></div><span class="history-chev" aria-hidden="true">›</span></button>`; }).join('') : '<div class="text-sm text-dim">Nessun giocatore. Si aggiungono da qui o in automatico alla fine del primo torneo.</div>'}
   </div>`;
 }
 function addLeaguePlayer() {
@@ -136,7 +136,8 @@ function eloChart(history) {
   s += `<text x="${(x(lastI) + 8).toFixed(1)}" y="${(y(pts[lastI].elo) + 4).toFixed(1)}" class="endlabel">${Math.round(pts[lastI].elo)}</text>`;
   s += `<text x="${pl}" y="${H - 6}" class="tick">inizio</text><text x="${x(lastI)}" y="${H - 6}" text-anchor="end" class="tick">${fmtDate(pts[lastI].date)}</text>`;
   // Aree di tocco larghe quanto lo spazio tra due punti: toccando si legge il valore sopra il grafico
-  s += pts.map((p, i) => `<rect x="${(x(i) - step / 2).toFixed(1)}" y="0" width="${step.toFixed(1)}" height="${H - pb}" class="hit" tabindex="0" onpointerenter="eloReadout(this)" onfocus="eloReadout(this)" onclick="eloReadout(this)" data-label="${esc(label(i))}"><title>${esc(label(i))}</title></rect>`).join('');
+  const hx0 = i => Math.max(0, x(i) - step / 2), hx1 = i => Math.min(W, x(i) + step / 2);
+  s += pts.map((p, i) => `<rect x="${hx0(i).toFixed(1)}" y="0" width="${(hx1(i) - hx0(i)).toFixed(1)}" height="${H - pb}" class="hit" tabindex="0" onpointerenter="eloReadout(this)" onfocus="eloReadout(this)" onclick="eloReadout(this)" data-label="${esc(label(i))}"><title>${esc(label(i))}</title></rect>`).join('');
   return `<div class="elo-readout text-xs text-dim" id="eloReadout">Tocca il grafico per i valori · ora ${Math.round(pts[lastI].elo)}</div>${s}</svg>`;
 }
 function eloReadout(el) { const r = $id('eloReadout'); if (r) r.textContent = el.dataset.label; }
