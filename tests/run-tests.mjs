@@ -8,5 +8,6 @@ await import('./tournament.test.mjs');
 await import('./league.test.mjs');
 await import('./sync.test.mjs');
 await import('./live.test.mjs');
+await import('./admin.test.mjs');
 
 process.exit(summary() ? 1 : 0);

@@ -204,9 +204,9 @@ function renamePlayer(id) {
 function setPlayerEmoji(id, e) { updatePlayer(id, { emoji: e }); renderLeague(); }
 function confirmMerge(id) {
   const into = $id('mergeSel').value; if (!into) return;
-  showModal(`Unire ${leagueName(id)} a ${leagueName(into)}?`, `Tutti i tornei di "${leagueName(id)}" verranno contati per "${leagueName(into)}". Il profilo "${leagueName(id)}" sparisce dalla lega.`, () => { mergePlayers(id, into); LUI.profile = canonicalId(into); renderLeague(); toast('Profili uniti'); });
+  requireMaster(() => showModal(`Unire ${leagueName(id)} a ${leagueName(into)}?`, `Tutti i tornei di "${leagueName(id)}" verranno contati per "${leagueName(into)}". Il profilo "${leagueName(id)}" sparisce dalla lega.`, () => { mergePlayers(id, into); LUI.profile = canonicalId(into); renderLeague(); toast('Profili uniti'); }));
 }
-function confirmDeletePlayer(id) { showModal(`Eliminare ${leagueName(id)}?`, 'Non ha tornei archiviati: sparisce dalla lista dei giocatori abituali.', () => { updatePlayer(id, { deleted: true }); LUI.profile = null; renderLeague(); }); }
+function confirmDeletePlayer(id) { requireMaster(() => showModal(`Eliminare ${leagueName(id)}?`, 'Non ha tornei archiviati: sparisce dalla lista dei giocatori abituali.', () => { updatePlayer(id, { deleted: true }); LUI.profile = null; renderLeague(); })); }
 
 // ── Dettaglio torneo archiviato ──
 function openTournament(tid) {
@@ -233,7 +233,7 @@ function toggleArchivedDeck(tid, id, c) {
 function saveTournamentSet(tid) { updateTournament(tid, { set: $id('tdSet').value.trim() }); closeModal(); renderLeague(); toast('Torneo aggiornato'); }
 function confirmDeleteTournament(tid) {
   const t = L.tournaments[tid];
-  showModal('Eliminare il torneo?', `${fmtDate(t.date)} · ${t.set || 'Draft'}: esce da campionato, Elo e statistiche.`, () => { deleteTournament(tid); renderLeague(); toast('Torneo eliminato'); });
+  requireMaster(() => showModal('Eliminare il torneo?', `${fmtDate(t.date)} · ${t.set || 'Draft'}: esce da campionato, Elo e statistiche. Si può ripristinare da Dati e sync → Avanzate.`, () => { deleteTournament(tid); renderLeague(); toast('Torneo eliminato'); }));
 }
 
 // ── Dati e sync ──
@@ -248,13 +248,19 @@ function renderSyncBox() {
       <div class="kv"><span>Accesso</span><b>${canWrite ? '✏️ Lettura e scrittura' : '👁️ Sola lettura'}</b></div>
       <div class="kv"><span>Stato</span><b>${status}</b></div>`;
     if (canWrite) {
-      h += `<div class="kv"><span>Torneo in diretta</span><b>${liveOn ? (live.pubError ? `⚠️ ${esc(live.pubError)}` : '🔴 Attivo') : 'Disattivato'}</b></div>
+      h += `<div class="kv"><span>Torneo in diretta</span><b>${liveOn ? (live.pubError ? `⚠️ ${esc(live.pubError)}` : T.started && T.id && liveSh().detached ? '📴 Torneo solo su questo telefono' : '🔴 Attivo') : 'Disattivato'}</b></div>
+        ${masterOn() ? '<div class="kv"><span>Modalità master</span><b>🔑 Attiva</b></div>' : ''}
         <div class="btn-row"><button class="btn btn-primary btn-sm" onclick="syncNow(true)">Sincronizza</button><button class="btn btn-secondary btn-sm" onclick="setLivePublish(${!liveOn})">${liveOn ? 'Disattiva live' : 'Attiva live'}</button></div>`;
     } else {
       h += `<div class="text-xs text-dim" style="line-height:1.55;">Per registrare i tornei nella lega (e trasmetterli in diretta) serve il PIN. Per seguire basta così.${L.dirty.length ? ` ${L.dirty.length} modifiche restano solo su questo telefono finché non inserisci il PIN.` : ''}</div>
         <div class="btn-row"><button class="btn btn-primary btn-sm" onclick="openPinForm()">Inserisci PIN</button><button class="btn btn-secondary btn-sm" onclick="syncNow(true)">Aggiorna</button></div>`;
     }
-    h += `<details class="sync-adv"><summary>Avanzate</summary><div class="btn-row">
+    const nDel = deletedTournaments().length;
+    h += `<details class="sync-adv"><summary>Avanzate</summary>
+      <div class="btn-row wrap">${canWrite ? (masterOn() ? '<button class="btn btn-secondary btn-sm" onclick="exitMaster()">Esci da master</button>' : '<button class="btn btn-secondary btn-sm" onclick="openMasterForm()">🔑 PIN master</button>') : ''}
+      <button class="btn btn-secondary btn-sm" onclick="openHistory()">🕘 Cronologia live</button>
+      ${nDel ? `<button class="btn btn-secondary btn-sm" onclick="openDeletedTournaments()">🗑️ Eliminati (${nDel})</button>` : ''}</div>
+      <div class="btn-row">
       ${canWrite ? `<button class="btn btn-secondary btn-sm" onclick="confirmRemovePin()">Togli PIN</button>` : ''}
       <button class="btn btn-secondary btn-sm" onclick="openSyncForm()">Altra lega</button>
       <button class="btn btn-secondary btn-sm" onclick="confirmDisconnect()">Scollega</button></div>
@@ -281,13 +287,13 @@ async function savePinForm() {
     syncCfg.pin = pin; saveSyncCfg(); closeModal(); renderSyncBox();
     toast('PIN corretto: ora puoi registrare i tornei');
     await syncNow(false); renderSyncBox();
-    if (T.started) livePublishSoon();
+    liveResume();
   } catch (e) {
     toast(e.message || 'Verifica non riuscita');
     btn.disabled = false; btn.textContent = 'Conferma';
   }
 }
-function confirmRemovePin() { showModal('Togliere il PIN?', 'Questo telefono resta collegato in sola lettura.', () => { if (T.started && livePublishEnabled()) livePublishNow(true); syncCfg.pin = ''; saveSyncCfg(); renderSyncBox(); }); }
+function confirmRemovePin() { showModal('Togliere il PIN?', 'Questo telefono resta collegato in sola lettura.', () => { if (livePublishEnabled()) liveStop(); syncCfg.pin = ''; syncCfg.adminPin = ''; saveSyncCfg(); renderSyncBox(); }); }
 function switchToDefaultLeague() { stopLive(); reconnectDefault(); startLive(); renderSyncBox(); syncNow(true); }
 function openSyncForm() {
   const c = syncCfg && !isDefaultLeague() ? syncCfg : {};
@@ -373,9 +379,8 @@ function deckPickerHtml(pid) {
   return `<div class="deck-picker"><span class="text-xs text-dim">Mazzo</span>${COLORS.map(c => `<button class="pip pip-${c}${cur.includes(c) ? '' : ' off'}" onclick="event.stopPropagation();toggleDeckColor(${pid},'${c}')" aria-pressed="${cur.includes(c)}" aria-label="${COLOR_NAMES[c]}">${c}</button>`).join('')}</div>`;
 }
 function toggleDeckColor(pid, c) {
-  T.decks = T.decks || {};
-  const cur = T.decks[pid] || '';
-  T.decks[pid] = COLORS.filter(x => (x === c ? !cur.includes(x) : cur.includes(x))).join('');
+  const cur = (T.decks && T.decks[pid]) || '';
+  doOp({ t: 'deck', pid, colors: COLORS.filter(x => (x === c ? !cur.includes(x) : cur.includes(x))).join('') });
   if (T.archivedId && L.tournaments[T.archivedId]) {
     const p = P(pid), lid = p && p.leagueId, t = L.tournaments[T.archivedId];
     if (lid) updateTournament(T.archivedId, { decks: { ...(t.decks || {}), [lid]: T.decks[pid] } });

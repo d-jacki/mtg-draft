@@ -105,7 +105,8 @@ function archiveTournament() {
   for (const [pid, colors] of Object.entries(T.decks || {})) if (map[pid] && colors) decks[map[pid]] = colors;
   const now = new Date();
   const t = {
-    id: uid('t'), date: isoDate(now), season: String(now.getFullYear()),
+    // Stesso id del torneo: se lo archiviano due telefoni che lo gestivano insieme resta un solo documento
+    id: T.id || uid('t'), date: isoDate(now), season: String(now.getFullYear()),
     set: T.set || '', mode: T.mode, totalRounds: T.totalRounds, createdAt: Date.now(),
     entrants: T.players.map(p => map[p.id]),
     names: Object.fromEntries(T.players.map(p => [map[p.id], p.name])),

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mtg-draft-v18';
+const CACHE_NAME = 'mtg-draft-v20';
 const ASSETS = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const ASSETS = [
   './js/sync.js',
   './js/league-ui.js',
   './js/live.js',
+  './js/admin.js',
   './js/main.js',
   './icon.svg',
   './icon-192.png',

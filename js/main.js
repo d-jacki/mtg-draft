@@ -12,17 +12,16 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 (function(){
   const timerWasRunning = load();
   if (!T.started && T.players.length === 0) return;
-  renderPlayerList();
-  if (T.draftOrder.length) renderSeating();
   if (T.started) {
-    $id('screen-setup').querySelectorAll('input, button').forEach(el => el.disabled = true);
-    $id('startBtn').classList.add('hidden'); $id('reshuffleBtn').classList.add('hidden');
-    updateStatus();
-    renderRound(); renderStandings();
-    if (timerWasRunning) startTimer();
+    // Il timer riprende da solo: non è una nuova operazione da mandare agli altri telefoni
+    if (timerWasRunning) { TM.running = true; TM.startedAt = Date.now() - TM.seconds * 1000; timerEnsure(); }
+    save(); // fissa l'id dei tornei avviati con una versione precedente
+    showStartedTournament();
     if (T.ended) switchTab('standings'); else switchTab('round');
-  } else if (T.players.length >= 4 && T.draftOrder.length) {
-    switchTab('draft');
+  } else {
+    renderPlayerList();
+    if (T.draftOrder.length) renderSeating();
+    if (T.players.length >= 4 && T.draftOrder.length) switchTab('draft');
   }
 })();
 

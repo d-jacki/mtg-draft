@@ -93,6 +93,7 @@ async function syncNow(manual) {
   try {
     const pulled = await syncPull();
     const pushed = await syncPush();
+    await syncLeagueInfo();
     syncState.lastSync = Date.now();
     if (pulled && typeof onLeagueSynced === 'function') onLeagueSynced();
     if (manual) toast(pulled || pushed ? `Sincronizzato (↓${pulled} ↑${pushed})` : 'Già tutto aggiornato');
@@ -102,6 +103,10 @@ async function syncNow(manual) {
     if (manual) toast(`Sync: ${syncState.error}`);
     return false;
   } finally { syncState.running = false; renderSyncStatus(); }
+}
+// La lega ha un PIN master? (pubblico: dice solo se esiste). Facoltativo: con uno schema vecchio si ignora
+async function syncLeagueInfo() {
+  try { const out = await sbRpc('league_info', { p_league: syncCfg.league }); syncCfg.hasMaster = !!(out && out.master); saveSyncCfg(); } catch (e) {}
 }
 // Sync ritardato dopo una modifica locale (più salvataggi ravvicinati = una sola chiamata)
 function syncSoon() { if (!syncConfigured()) return; clearTimeout(_syncTimer); _syncTimer = setTimeout(() => syncNow(false), 1500); }

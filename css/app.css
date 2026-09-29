@@ -780,3 +780,15 @@ button.pip { width: 36px; height: 36px; font-size: 0.8rem; cursor: pointer; marg
 .sync-adv > summary::after { content: 'BE'; font-size: 0.75rem; }
 .sync-adv[open] > summary::after { content: 'B4'; }
 .kv + .text-xs { margin-top: 10px; }
+
+/* ── Cronologia e strumenti master ── */
+.btn-row.wrap { flex-wrap: wrap; }
+.btn-row.wrap .btn { flex: 1 1 auto; }
+.hist-list { text-align: left; }
+.hist-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.hist-row:last-child { border-bottom: none; }
+.hist-main { flex: 1; min-width: 0; }
+.hist-note { font-size: 0.86rem; font-weight: 700; line-height: 1.35; color: var(--text); overflow-wrap: anywhere; }
+.hist-row .btn { flex: none; }
+.hist-now { flex: none; font-size: 0.72rem; font-weight: 800; color: var(--accent-dark); background: var(--accent-light); padding: 6px 10px; border-radius: var(--radius-xs); }
+.hist-t strong { display: block; }

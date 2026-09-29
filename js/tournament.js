@@ -1,6 +1,7 @@
 // Torneo: stato, setup, tavolo, pairing, punteggi, timer, round, classifica, navigazione.
 
-const T = { players: [], draftOrder: [], rounds: [], started: false, ended: false, totalRounds: 0, currentRound: 0, mode: 'swiss', set: '', decks: {}, archivedId: null };
+// id: identifica il torneo tra i telefoni (live condiviso e archivio); acks: ultima operazione di ogni telefono inclusa nello stato
+const T = { id: null, players: [], draftOrder: [], rounds: [], started: false, ended: false, totalRounds: 0, currentRound: 0, mode: 'swiss', set: '', decks: {}, archivedId: null, acks: {} };
 let viewingRound = 1, playerIdCounter = 0, lastScoredMatch = -1, expandedPlayer = null;
 const TM = { running: false, seconds: 0, total: 50 * 60, interval: null, startedAt: null, firedWarning: false, firedExpired: false, firedOvertime: false };
 
@@ -51,7 +52,7 @@ function shortName(pid) {
 function save() {
   localStorage.setItem('mtg-t', JSON.stringify({
     T, viewingRound, playerIdCounter,
-    tm: { seconds: TM.seconds, running: TM.running, total: TM.total, firedWarning: TM.firedWarning, firedExpired: TM.firedExpired, firedOvertime: TM.firedOvertime },
+    tm: { seconds: TM.running && TM.startedAt ? Math.floor((Date.now() - TM.startedAt) / 1000) : TM.seconds, running: TM.running, total: TM.total, firedWarning: TM.firedWarning, firedExpired: TM.firedExpired, firedOvertime: TM.firedOvertime },
     savedAt: Date.now()
   }));
   if (typeof livePublishSoon === 'function') livePublishSoon();
@@ -69,6 +70,8 @@ function load() {
     TM.firedExpired = d.tm?.firedExpired || false;
     TM.firedOvertime = d.tm?.firedOvertime || false;
     if (d.tm?.running && d.savedAt) TM.seconds += Math.floor((Date.now() - d.savedAt) / 1000);
+    // Tornei avviati prima degli id condivisi
+    if (T.started && !T.id) T.id = uid('t');
     return d.tm?.running || false;
   } catch { return false; }
 }
@@ -167,8 +170,16 @@ function renderPairingPreview() {
 }
 
 // ── START ──
-function handleStart() {
+function handleStart(force) {
   if (T.players.length < 4) return;
+  // Un altro telefono ha già un torneo in diretta: meglio unirsi a quello che sostituirlo per sbaglio
+  if (!force && typeof liveOtherActive === 'function' && liveOtherActive()) {
+    showModalCustom('Torneo già in corso', 'Un altro telefono sta gestendo un torneo in diretta. Puoi unirti e gestirlo insieme; se avvii il tuo, in diretta si vedrà il tuo e l\'altro continuerà solo su quel telefono.',
+      `<button class="btn btn-primary" onclick="closeModal();openLive()">Guardalo e unisciti</button>
+      <button class="btn btn-secondary mt" onclick="closeModal();handleStart(true)">Avvia comunque il mio</button>
+      <button class="btn btn-secondary btn-sm mt" onclick="closeModal()">Annulla</button>`);
+    return;
+  }
   const n = T.players.length;
   const defR = Math.ceil(Math.log2(n));
   const maxR = Math.min(n - 1, 8);
@@ -197,14 +208,22 @@ function handleStart() {
 function captureSetName() { const el = $id('setNameInp'); if (el) T.set = el.value.trim(); }
 function startWithMode(mode, rounds, timerMin) {
   syncDraftOrder();
+  T.id = uid('t'); T.acks = {}; T.archivedId = null;
   T.mode = mode; T.started = true; T.ended = false; T.rounds = []; T.currentRound = 0;
   if (mode === 'swiss') { T.totalRounds = rounds || Math.ceil(Math.log2(T.players.length)); TM.total = (timerMin || 50) * 60; }
   else { T.totalRounds = T.players.length; generateAllRRRounds(); }
+  lockSetup(); renderSeatList(); updateStatus();
+  if (mode === 'swiss') nextRound(); else { T.currentRound = 1; viewingRound = 1; renderRound(); save(); }
+  switchTab('round');
+}
+function lockSetup() {
   $id('screen-setup').querySelectorAll('input, button').forEach(el => el.disabled = true);
   $id('startBtn').classList.add('hidden'); $id('reshuffleBtn').classList.add('hidden');
-  renderSeatList(); updateStatus();
-  if (mode === 'swiss') nextRound(); else { T.currentRound = 1; viewingRound = 1; renderRound(); }
-  switchTab('round');
+}
+// Torneo avviato caricato da fuori (ripristino all'avvio, oppure unendosi al torneo di un altro telefono)
+function showStartedTournament() {
+  renderPlayerList(); if (T.draftOrder.length) renderSeating();
+  lockSetup(); updateStatus(); renderRound(); renderStandings();
 }
 
 // ── RR SCHEDULE ──
@@ -302,17 +321,94 @@ function pairPool(pool){
 function generatePairings(){return T.currentRound===1?generateDraftR1():generateSwiss();}
 
 // ── DROP ──
-function dropPlayer(){const sel=$id('dropSel');if(!sel)return;const pid=parseInt(sel.value);if(!pid)return;const p=T.players.find(p=>p.id===pid);if(!p)return;const hint=T.mode==='roundrobin'?' Le partite non giocate diventeranno forfeit.':' Una partita aperta del round corrente diventerà forfeit.';showModal(`Ritirare ${p.name}?`,'I risultati precedenti restano.'+hint,()=>{p.dropped=true;p.droppedAtRound=T.currentRound;if(T.mode==='roundrobin'){T.rounds.forEach(r=>r.pairings.forEach(m=>{if(m.rest||m.bye||m.p1wins!==null)return;if(m.p1===pid){m.p1wins=0;m.p2wins=1;m.draws=0;m.forfeit=true;}else if(m.p2===pid){m.p1wins=1;m.p2wins=0;m.draws=0;m.forfeit=true;}}));}else if(T.currentRound>0&&T.rounds[T.currentRound-1]){T.rounds[T.currentRound-1].pairings.forEach(m=>{if(m.rest||m.bye||m.p1wins!==null)return;if(m.p1===pid){m.p1wins=0;m.p2wins=2;m.draws=0;m.forfeit=true;}else if(m.p2===pid){m.p1wins=2;m.p2wins=0;m.draws=0;m.forfeit=true;}});}renderRound();renderStandings();save();toast(`${p.name} ritirato`);});}
+function dropPlayer(){const sel=$id('dropSel');if(!sel)return;const pid=parseInt(sel.value);if(!pid)return;const p=T.players.find(p=>p.id===pid);if(!p)return;const hint=T.mode==='roundrobin'?' Le partite non giocate diventeranno forfeit.':' Una partita aperta del round corrente diventerà forfeit.';showModal(`Ritirare ${p.name}?`,'I risultati precedenti restano.'+hint,()=>{if(!doOp({t:'drop',pid})){toast(`${p.name} è già ritirato`);return;}renderRound();renderStandings();save();toast(`${p.name} ritirato`);});}
 
 // ── TIMER ──
+// Il timer è condiviso: avvio, pausa e azzeramento sono operazioni; ogni telefono conta da sé partendo da startedAt
 function fmtTimer(){const rem=TM.total-TM.seconds;const min=Math.floor(Math.abs(rem)/60),sec=Math.abs(rem)%60;return `${rem<0?'+':''}${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;}
-function startTimer(){if(TM.running)return;ensureAudio();acquireWakeLock();TM.running=true;TM.startedAt=Date.now()-TM.seconds*1000;save();TM.interval=setInterval(()=>{TM.seconds=Math.floor((Date.now()-TM.startedAt)/1000);const rem=TM.total-TM.seconds;const el=document.querySelector('.timer-display');if(el){el.textContent=fmtTimer();el.className='timer-display'+(rem<=300?' warning':'');}if(rem<=300&&rem>0&&!TM.firedWarning){TM.firedWarning=true;beep(2);vibrate([150,80,150]);toast('5 minuti al termine del round');save();}if(rem<=0&&!TM.firedExpired){TM.firedExpired=true;beep(4);vibrate([200,100,200,100,400]);toast('Tempo scaduto!');save();}if(rem<=-300&&!TM.firedOvertime){TM.firedOvertime=true;beep(4);vibrate([400,200,400]);toast('+5 minuti oltre il tempo');save();}},1000);renderRound();}
-function pauseTimer(){if(TM.running&&TM.startedAt)TM.seconds=Math.floor((Date.now()-TM.startedAt)/1000);TM.running=false;TM.startedAt=null;clearInterval(TM.interval);releaseWakeLock();save();renderRound();}
-function clearTimerState(){TM.running=false;clearInterval(TM.interval);TM.seconds=0;TM.startedAt=null;TM.firedWarning=false;TM.firedExpired=false;TM.firedOvertime=false;releaseWakeLock();}
-function resetTimer(){clearTimerState();save();renderRound();}
+function timerTick(){TM.seconds=Math.floor((Date.now()-TM.startedAt)/1000);const rem=TM.total-TM.seconds;const el=document.querySelector('.timer-display');if(el){el.textContent=fmtTimer();el.className='timer-display'+(rem<=300?' warning':'');}if(rem<=300&&rem>0&&!TM.firedWarning){TM.firedWarning=true;beep(2);vibrate([150,80,150]);toast('5 minuti al termine del round');save();}if(rem<=0&&!TM.firedExpired){TM.firedExpired=true;beep(4);vibrate([200,100,200,100,400]);toast('Tempo scaduto!');save();}if(rem<=-300&&!TM.firedOvertime){TM.firedOvertime=true;beep(4);vibrate([400,200,400]);toast('+5 minuti oltre il tempo');save();}}
+// Allinea il conteggio (interval e wake lock) a TM.running, comunque sia cambiato
+function timerEnsure(){if(TM.running&&TM.startedAt&&!TM.interval){acquireWakeLock();TM.interval=setInterval(timerTick,1000);}else if(!TM.running&&TM.interval){clearInterval(TM.interval);TM.interval=null;releaseWakeLock();}}
+function startTimer(){if(TM.running)return;ensureAudio();doOp({t:'timer',round:T.currentRound,running:true,seconds:TM.seconds,startedAt:Date.now()-TM.seconds*1000});save();renderRound();}
+function pauseTimer(){const s=TM.running&&TM.startedAt?Math.floor((Date.now()-TM.startedAt)/1000):TM.seconds;doOp({t:'timer',round:T.currentRound,running:false,seconds:s,startedAt:null});save();renderRound();}
+function clearTimerState(){TM.running=false;clearInterval(TM.interval);TM.interval=null;TM.seconds=0;TM.startedAt=null;TM.firedWarning=false;TM.firedExpired=false;TM.firedOvertime=false;releaseWakeLock();}
+function resetTimer(){doOp({t:'timer',round:T.currentRound,running:false,seconds:0,startedAt:null,reset:true});save();renderRound();}
+
+// ── OPERAZIONI ──
+// Ogni modifica del torneo avviato passa da doOp. applyOp la applica a T/TM e restituisce false se non è più
+// valida: con il torneo condiviso (live.js) le modifiche non ancora confermate dal server vengono riapplicate
+// sopra lo stato arrivato da un altro telefono, quindi ogni operazione porta con sé le sue condizioni
+// (quale partita, da quale round) invece di fidarsi solo degli indici.
+function doOp(op){if(!applyOp(op))return false;if(typeof liveRecordOp==='function')liveRecordOp(op);return true;}
+// Firma dei risultati: se cambia, i pairing calcolati per il round successivo non valgono più
+function resultsSig(){return JSON.stringify([T.rounds.map(r=>r.pairings.map(m=>[m.p1,m.p2,m.p1wins,m.p2wins,m.draws])),T.players.map(p=>!!p.dropped)]);}
+function applyOp(op){
+  if(op.t==='join')return true;
+  // Ripristino di una versione dalla cronologia: tutto lo stato torna com'era, gli acks restano i più recenti
+  if(op.t==='restore'){const acks={...(T.acks||{})};liveLoadState(op.state);for(const[k,v]of Object.entries(acks))T.acks[k]=Math.max(T.acks[k]||0,v);return true;}
+  if(op.t==='deck'){T.decks=T.decks||{};T.decks[op.pid]=op.colors;return true;}
+  if(op.t==='archived'){T.archivedId=op.id;T.players.forEach(p=>{if(op.lids&&op.lids[p.id])p.leagueId=op.lids[p.id];});return true;}
+  if(T.ended)return false;
+  switch(op.t){
+    case 'res':{
+      const r=T.rounds[op.r],m=r&&r.pairings[op.m];
+      if(!m||m.p1!==op.p1||m.p2!==op.p2||m.bye||m.rest)return false;
+      // Swiss: solo il round in corso, salvo correzione di un round chiuso in modalità master (force)
+      if(T.mode!=='roundrobin'&&op.r!==T.currentRound-1&&!(op.force&&op.r<T.currentRound))return false;
+      m.p1wins=op.w1;m.p2wins=op.w2;m.draws=op.d;if(op.w1==null)m.forfeit=false;return true;
+    }
+    case 'drop':{
+      const pid=op.pid,p=P(pid);if(!p||p.dropped)return false;
+      p.dropped=true;p.droppedAtRound=T.currentRound;
+      if(T.mode==='roundrobin'){T.rounds.forEach(r=>r.pairings.forEach(m=>{if(m.rest||m.bye||m.p1wins!==null)return;if(m.p1===pid){m.p1wins=0;m.p2wins=1;m.draws=0;m.forfeit=true;}else if(m.p2===pid){m.p1wins=1;m.p2wins=0;m.draws=0;m.forfeit=true;}}));}
+      else if(T.currentRound>0&&T.rounds[T.currentRound-1]){T.rounds[T.currentRound-1].pairings.forEach(m=>{if(m.rest||m.bye||m.p1wins!==null)return;if(m.p1===pid){m.p1wins=0;m.p2wins=2;m.draws=0;m.forfeit=true;}else if(m.p2===pid){m.p1wins=2;m.p2wins=0;m.draws=0;m.forfeit=true;}});}
+      return true;
+    }
+    case 'next':{
+      if(T.currentRound!==op.from||T.currentRound>=T.totalRounds)return false;
+      const cur=T.rounds[T.currentRound-1];if(cur&&cur.pairings.some(m=>m.p1wins==null))return false;
+      // I pairing viaggiano con l'operazione (sono casuali): si rigenerano solo se nel frattempo è cambiato un risultato
+      const sig=resultsSig();if(op.pairings&&op.sig!==sig){op.pairings=null;op.regen=true;}op.sig=sig;
+      T.currentRound++;if(!op.pairings)op.pairings=generatePairings();
+      T.rounds.push({pairings:op.pairings.map(m=>({...m})),locked:false});clearTimerState();return true;
+    }
+    case 'undo':{
+      if(T.currentRound!==op.from||T.currentRound<=1)return false;
+      T.rounds.pop();T.currentRound--;clearTimerState();if(T.rounds.length)T.rounds[T.rounds.length-1].locked=false;
+      T.players.forEach(p=>{if(p.droppedAtRound&&p.droppedAtRound>T.currentRound){p.dropped=false;p.droppedAtRound=null;}});return true;
+    }
+    case 'end':{T.ended=true;TM.running=false;TM.startedAt=null;timerEnsure();T.rounds.forEach(r=>r.locked=true);return true;}
+    case 'timer':{
+      if(op.round!==T.currentRound)return false;
+      TM.running=op.running;TM.seconds=op.seconds;TM.startedAt=op.startedAt;
+      if(op.reset){TM.firedWarning=false;TM.firedExpired=false;TM.firedOvertime=false;}
+      timerEnsure();return true;
+    }
+  }
+  return false;
+}
+// Descrizione breve per la cronologia delle modifiche
+function opNote(op){
+  const n=pid=>shortName(pid);
+  switch(op.t){
+    case 'res':return op.w1==null?`R${op.r+1} · ${n(op.p1)} vs ${n(op.p2)}: risultato tolto`:T.mode==='roundrobin'?`R${op.r+1} · vince ${n(op.w1>op.w2?op.p1:op.p2)} (vs ${n(op.w1>op.w2?op.p2:op.p1)})`:`R${op.r+1} · ${n(op.p1)} ${op.w1}–${op.w2}${op.d?'–'+op.d:''} ${n(op.p2)}${op.force?' (correzione)':''}`;
+    case 'drop':return `${n(op.pid)} ritirato`;
+    case 'next':return op.from===0?'Torneo avviato':`Round ${op.from+1} generato`;
+    case 'undo':return `Round ${op.from} annullato`;
+    case 'end':return 'Torneo concluso';
+    case 'timer':return op.reset?'Timer azzerato':op.running?'Timer avviato':'Timer in pausa';
+    case 'deck':return `Mazzo di ${n(op.pid)}`;
+    case 'archived':return 'Salvato nello storico';
+    case 'join':return 'Un telefono si è unito';
+    case 'restore':return `Ripristinata la versione ${op.label||''}`.trim();
+  }
+  return '';
+}
+// Messaggio per un'operazione scartata perché un altro telefono è arrivato prima
+function opRejectedMsg(op){return op.t==='next'?'Il round successivo l\'ha già generato un altro telefono':op.t==='res'?'Risultato non salvato: il round è cambiato su un altro telefono':op.t==='timer'?'Timer non aggiornato: il round è cambiato':'Già fatto da un altro telefono';}
 
 // ── ROUND ──
-function nextRound(){if(T.currentRound>=T.totalRounds){endTournament();return;}T.currentRound++;T.rounds.push({pairings:generatePairings(),locked:false});viewingRound=T.currentRound;clearTimerState();renderRound();updateStatus();save();}
+function nextRound(){if(T.currentRound>=T.totalRounds){endTournament();return;}if(!doOp({t:'next',from:T.currentRound}))return;viewingRound=T.currentRound;renderRound();updateStatus();save();}
 function viewRound(n){const max=T.mode==='roundrobin'?T.totalRounds:T.currentRound;if(n>=1&&n<=max){viewingRound=n;renderRound();}}
 
 function renderStickyBar(done,tot,isRR){
@@ -326,7 +422,8 @@ function renderStickyBar(done,tot,isRR){
   inner+=`<div class="rs-progress"><span class="done">${done}</span>/${tot} completati${done<tot?`<br><span class="pending">${tot-done} rimanent${tot-done===1?'e':'i'}</span>`:' ✓'}</div>`;
   return `<div class="round-sticky">${inner}</div>`;
 }
-function renderRound(){
+// keepScroll: aggiornamento arrivato da un altro telefono, non spostare la pagina sotto le dita
+function renderRound(keepScroll){
   const C=$id('roundContent');if(!T.rounds.length){C.innerHTML='<div class="card text-center text-dim">Nessun round</div>';return;}
   const isRR=T.mode==='roundrobin',maxNav=isRR?T.totalRounds:T.currentRound;
   const round=T.rounds[viewingRound-1];
@@ -335,7 +432,9 @@ function renderRound(){
   if(round)h+=renderStickyBar(done,tot,isRR);
   h+=`<div class="card" style="padding:12px 16px;"><div class="flex-between"><button class="btn btn-secondary btn-sm" onclick="viewRound(${viewingRound-1})" ${viewingRound<=1?'disabled':''} aria-label="Round precedente">←</button><span style="font-weight:800;font-size:0.95rem;">Round ${viewingRound} <span style="font-weight:500;color:var(--text-dim);">/ ${T.totalRounds}</span> <span class="mode-badge ${isRR?'rr':'swiss'}">${isRR?'BO1':'Swiss'}</span>${liveBadgeHtml()}</span><button class="btn btn-secondary btn-sm" onclick="viewRound(${viewingRound+1})" ${viewingRound>=maxNav?'disabled':''} aria-label="Round successivo">→</button></div>${round&&!T.ended?`<button class="btn btn-secondary btn-sm" style="width:100%;margin-top:10px;" onclick="openAnnounce()">📣 Annuncia pairing</button>`:''}</div>`;
   if(!round){C.innerHTML=h;return;}
-  const canEdit=!T.ended&&(isRR||viewingRound===T.currentRound);
+  // Round Swiss già chiusi: modificabili solo in modalità master (correzione di un errore)
+  const pastFix=!isRR&&viewingRound<T.currentRound&&typeof masterOn==='function'&&masterOn();
+  const canEdit=!T.ended&&(isRR||viewingRound===T.currentRound||pastFix);
   let firstInc=null;
   for(let i=0;i<round.pairings.length;i++){
     const m=round.pairings[i],p1=T.players.find(p=>p.id===m.p1),p2=m.p2?T.players.find(p=>p.id===m.p2):null;
@@ -353,18 +452,20 @@ function renderRound(){
   }
   if(!T.ended){if(isRR)h+=renderRRActions();else if(viewingRound===T.currentRound)h+=renderSwissActions(round);}
   C.innerHTML=h;lastScoredMatch=-1;updateStatus();
-  if(firstInc&&canEdit)setTimeout(()=>{const el=document.getElementById(firstInc);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},120);
+  if(firstInc&&canEdit&&!keepScroll)setTimeout(()=>{const el=document.getElementById(firstInc);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},120);
 }
 
 function renderSwissActions(round){const allDone=round.pairings.every(m=>m.p1wins!==null);let h='<div class="card" style="padding:14px;">';const act=getActivePlayers();
   if(act.length>2){h+=`<div class="mb"><select id="dropSel" aria-label="Seleziona giocatore da ritirare"><option value="">Ritira giocatore...</option>${act.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div><button class="btn btn-danger btn-sm mb" onclick="dropPlayer()">Ritira dal torneo</button>`;}
   if(allDone){h+=T.currentRound<T.totalRounds?'<button class="btn btn-primary" onclick="nextRound()">Round successivo →</button>':'<button class="btn btn-primary" onclick="confirmEnd()">Termina torneo</button>';}
-  if(T.currentRound>1)h+=`<button class="btn btn-secondary mt" onclick="confirmUndo()">Annulla round</button>`;return h+'</div>';}
+  if(T.currentRound>1)h+=`<button class="btn btn-secondary mt" onclick="confirmUndo()">Annulla round</button>`;return h+historyBtn()+'</div>';}
+// Cronologia delle modifiche del torneo condiviso (admin.js)
+function historyBtn(){return typeof syncConfigured==='function'&&syncConfigured()&&T.id?`<button class="btn btn-secondary btn-sm mt" onclick="openHistory('${T.id}')">🕘 Cronologia modifiche</button>`:'';}
 function renderRRActions(){const allDone=T.rounds.every(r=>r.pairings.filter(m=>!m.rest).every(m=>m.p1wins!==null));let h='<div class="card" style="padding:14px;">';const act=getActivePlayers();
   if(act.length>2){h+=`<div class="mb"><select id="dropSel" aria-label="Seleziona giocatore da ritirare"><option value="">Ritira giocatore...</option>${act.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div><button class="btn btn-danger btn-sm mb" onclick="dropPlayer()">Ritira dal torneo</button>`;}
   if(allDone)h+='<button class="btn btn-primary" onclick="confirmEnd()">Termina torneo</button>';
   else{const next=T.rounds.findIndex(r=>r.pairings.some(m=>!m.rest&&m.p1wins===null));if(next>=0&&next!==viewingRound-1)h+=`<button class="btn btn-secondary" onclick="viewRound(${next+1})">Vai a Round ${next+1}</button>`;}
-  return h+'</div>';}
+  return h+historyBtn()+'</div>';}
 
 function swissBtns(idx,m){const n1=shortName(m.p1),n2=shortName(m.p2);
   const main=[[2,0,0,'2–0'],[2,1,0,'2–1'],[1,2,0,'1–2'],[0,2,0,'0–2']];
@@ -379,8 +480,8 @@ function rrBtns(idx,m){const n1=shortName(m.p1),n2=shortName(m.p2);
 // Restituisce HTML (va in innerHTML): i nomi passano da esc()
 function fmtRes(m){if(m.bye)return'BYE';if(m.rest)return'Riposo';if(m.p1wins==null)return'—';const winner=()=>esc(shortName(m.p1wins>m.p2wins?m.p1:m.p2));if(m.forfeit)return`${winner()} (forfeit)`;if(T.mode==='roundrobin')return`${winner()} vince`;if(m.p1wins===0&&m.p2wins===0&&m.draws>0)return'ID (patta)';return m.draws>0?`${m.p1wins} – ${m.p2wins} – ${m.draws}`:`${m.p1wins} – ${m.p2wins}`;}
 
-function setRes(ri,mi,w1,w2,d){const m=T.rounds[ri].pairings[mi];m.p1wins=w1;m.p2wins=w2;m.draws=d;lastScoredMatch=mi;vibrate(50);renderRound();renderStandings();save();if(checkUpset(m)){toast('💥 Colpaccio!');celebrate();}else toast('Risultato salvato');}
-function editMatch(ri,mi){showModal('Modificare risultato?','Il risultato verrà resettato.',()=>{const m=T.rounds[ri].pairings[mi];m.p1wins=null;m.p2wins=null;m.draws=0;m.forfeit=false;renderRound();renderStandings();save();});}
+function setRes(ri,mi,w1,w2,d){const r=T.rounds[ri],m=r&&r.pairings[mi],force=T.mode!=='roundrobin'&&ri<T.currentRound-1;if(!m||!doOp({t:'res',r:ri,m:mi,p1:m.p1,p2:m.p2,w1,w2,d,force}))return;lastScoredMatch=mi;vibrate(50);renderRound();renderStandings();save();if(checkUpset(m)){toast('💥 Colpaccio!');celebrate();}else toast('Risultato salvato');}
+function editMatch(ri,mi){const m=T.rounds[ri].pairings[mi],p1=m.p1,p2=m.p2,force=T.mode!=='roundrobin'&&ri<T.currentRound-1;showModal('Modificare risultato?',force?'Round già chiuso: cambiano classifica e tiebreaker, ma i pairing dei round successivi restano quelli già fatti.':'Il risultato verrà resettato.',()=>{if(!doOp({t:'res',r:ri,m:mi,p1,p2,w1:null,w2:null,d:0,force})){toast(opRejectedMsg({t:'res'}));return;}renderRound();renderStandings();save();});}
 function showScoreInfo(){
   showModalCustom('Sistema punteggio MTG','Formato: V – S – P (Best of 3)',
     `<div style="text-align:left;font-size:0.88rem;line-height:1.6;color:var(--text-mid);">
@@ -439,9 +540,10 @@ function copyPairings(){
 
 function confirmEnd(){showModal('Terminare il torneo?','La classifica diventerà definitiva e i risultati non si potranno più modificare.',endTournament);}
 function confirmUndo(){showModal('Annullare il round?','Tornerai al round precedente.',undoRound);}
-function undoRound(){if(T.currentRound<=1)return;T.rounds.pop();T.currentRound--;T.ended=false;clearTimerState();if(T.rounds.length)T.rounds[T.rounds.length-1].locked=false;T.players.forEach(p=>{if(p.droppedAtRound&&p.droppedAtRound>T.currentRound){p.dropped=false;p.droppedAtRound=null;}});viewingRound=T.currentRound;updateStatus();renderRound();renderStandings();save();toast('Round annullato');}
-function endTournament(){T.ended=true;TM.running=false;clearInterval(TM.interval);releaseWakeLock();T.rounds.forEach(r=>r.locked=true);const archived=archiveCurrent();updateStatus();renderRound();renderStandings();save();switchTab('standings');celebrate();vibrate([100,60,100,60,250]);toast(archived?'🏆 Torneo concluso e salvato nella lega':'Torneo concluso!');}
-function archiveCurrent(){if(!T.ended||T.archivedId)return false;try{T.archivedId=archiveTournament().id;save();return true;}catch(e){console.error(e);toast('Errore nel salvataggio nello storico');return false;}}
+function undoRound(){if(!doOp({t:'undo',from:T.currentRound}))return;viewingRound=T.currentRound;updateStatus();renderRound();renderStandings();save();toast('Round annullato');}
+function endTournament(){if(!doOp({t:'end'}))return;const archived=archiveCurrent();updateStatus();renderRound();renderStandings();save();switchTab('standings');celebrate();vibrate([100,60,100,60,250]);toast(archived?'🏆 Torneo concluso e salvato nella lega':'Torneo concluso!');}
+// L'id in archivio è quello del torneo: se due telefoni che lo gestiscono insieme lo salvano, resta un solo documento
+function archiveCurrent(){if(!T.ended||T.archivedId)return false;try{const t=archiveTournament();doOp({t:'archived',id:t.id,lids:Object.fromEntries(T.players.map(p=>[p.id,p.leagueId]))});save();return true;}catch(e){console.error(e);toast('Errore nel salvataggio nello storico');return false;}}
 function celebrate(){try{if(!document.body||document.getElementById('confettiWrap'))return;const wrap=document.createElement('div');wrap.id='confettiWrap';wrap.style.cssText='position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:500;';const colors=['#3d6b8e','#c4793c','#3a8a5c','#e8b13c','#c0453a','#8aa3b8'];for(let i=0;i<70;i++){const p=document.createElement('div');p.className='confetti-piece';p.style.left=Math.random()*100+'%';p.style.background=colors[i%colors.length];p.style.animationDuration=(2.4+Math.random()*1.8)+'s';p.style.animationDelay=(Math.random()*0.7)+'s';p.style.transform=`rotate(${Math.random()*360}deg)`;wrap.appendChild(p);}document.body.appendChild(wrap);setTimeout(()=>{if(wrap.parentNode)wrap.parentNode.removeChild(wrap);},5500);}catch(e){}}
 
 // ── STANDINGS ──
@@ -479,14 +581,25 @@ function renderStandings(){
     </tbody></table></div>
     <div class="text-xs text-dim mt" style="text-align:center;">Tocca un giocatore per match e tiebreaker (Pts → ${isRR?'scontri diretti → ':''}OMW% → GW% → OGW%)</div></div>`;
   if(T.ended&&!T.archivedId)h+=`<button class="btn btn-primary mt" onclick="if(archiveCurrent()){renderStandings();toast('Salvato nella lega');}">🏆 Salva nello storico della lega</button>`;
-  if(T.started)h+=`<button class="share-btn" onclick="copyStandings()">📋 Copia classifica</button>`;
+  if(T.started)h+=`<button class="share-btn" onclick="copyStandings()">📋 Copia classifica</button>`+historyBtn();
   h+=`<button class="btn btn-secondary mt" onclick="confirmReset()">Nuovo torneo</button>`;
   $id('standingsContent').innerHTML=h;
 }
 function togglePlayer(pid){expandedPlayer=expandedPlayer===pid?null:pid;renderStandings();}
 function renderDetail(pid){const ms=getPlayerMatches(pid);const lid=tournamentLid(P(pid));const tb=`<div class="player-detail-tb">OMW ${(omw(pid)*100).toFixed(1)}% · GW ${(gwp(pid)*100).toFixed(1)}% · OGW ${(ogw(pid)*100).toFixed(1)}%</div>${deckPickerHtml(pid)}${lid?`<button class="link-btn" onclick="event.stopPropagation();openProfile('${lid}')">Profilo in lega →</button>`:''}`;if(!ms.length)return`<div class="player-detail"><div class="text-sm text-dim">Nessun match</div>${tb}</div>`;return`<div class="player-detail">${ms.map(m=>{const c=m.result==='W'?'var(--green)':m.result==='L'?'var(--red)':'var(--text-dim)';return`<div class="player-detail-match"><span>R${m.round} vs ${esc(m.opp)}</span><span style="color:${c};font-weight:700;">${m.score}</span></div>`;}).join('')}${tb}</div>`;}
 function copyStandings(){const isRR=T.mode==='roundrobin',st=getSwissStandings();let t=`${T.ended?'🏆 CLASSIFICA FINALE':'📊 Classifica'}\n${isRR?'Round Robin BO1':'Swiss'} · ${T.players.length} giocatori\n${'─'.repeat(26)}\n`;const medals=medalsById(st);st.forEach((p,i)=>{const m=medals.get(p.id)||`${i+1}.`;t+=isRR?`${m} ${p.name} — ${p.record.wins}W ${p.record.losses}L (${p.mp}pts)\n`:`${m} ${p.name} — ${p.record.wins}W ${p.record.losses}L ${p.record.draws}D (${p.mp}pts)\n`;});copyText(t,'Classifica copiata!');}
-function confirmReset(){showModal('Nuovo torneo?',T.archivedId?'Il torneo è già salvato nello storico della lega.':T.ended?'Attenzione: questo torneo non è stato salvato nello storico della lega.':T.started?'Il torneo in corso non è concluso: non finirà nello storico della lega.':'I giocatori inseriti verranno tolti. Lo storico della lega resta.',()=>{liveClearOnReset();localStorage.removeItem('mtg-t');location.reload();});}
+function confirmReset(){
+  // Torneo gestito anche da altri telefoni: si può uscire solo da qui senza toglierlo agli altri
+  if(T.started&&!T.ended&&typeof liveOthersManaging==='function'&&liveOthersManaging()){
+    showModalCustom('Nuovo torneo?','Questo torneo lo stanno gestendo anche altri telefoni.',
+      `<button class="btn btn-primary" onclick="closeModal();resetTournament(false)">Esci solo da questo telefono</button>
+      <button class="btn btn-danger mt" onclick="closeModal();requireMaster(()=>resetTournament(true))">Chiudi il torneo per tutti</button>
+      <button class="btn btn-secondary btn-sm mt" onclick="closeModal()">Annulla</button>`);
+    return;
+  }
+  showModal('Nuovo torneo?',T.archivedId?'Il torneo è già salvato nello storico della lega.':T.ended?'Attenzione: questo torneo non è stato salvato nello storico della lega.':T.started?'Il torneo in corso non è concluso: non finirà nello storico della lega.':'I giocatori inseriti verranno tolti. Lo storico della lega resta.',()=>resetTournament(true));
+}
+function resetTournament(clearLive){if(clearLive)liveClearOnReset();localStorage.removeItem('mtg-t');location.reload();}
 
 // ── NAV + SWIPE ──
 function switchTab(tab,fromPop){$qsa('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$qsa('.screen').forEach(s=>s.classList.toggle('active',s.id===`screen-${tab}`));if(tab==='round'){if(!T.mode||T.mode==='swiss')viewingRound=T.currentRound||1;renderRound();}if(tab==='standings')renderStandings();if(tab==='draft')renderSeating();if(tab==='league')renderLeague();window.scrollTo(0,0);if(!fromPop&&(!history.state||history.state.tab!==tab))history.pushState({tab},'');}

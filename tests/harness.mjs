@@ -93,7 +93,7 @@ export function reset(names, mode = 'swiss') {
   const T = S.T;
   T.players = names.map((name, i) => ({ id: i + 1, name, dropped: false, droppedAtRound: null }));
   T.draftOrder = T.players.map(p => p.id);
-  T.rounds = []; T.started = true; T.ended = false;
+  T.rounds = []; T.started = true; T.ended = false; T.id = null; T.acks = {};
   T.totalRounds = 3; T.currentRound = 1; T.mode = mode;
   S.viewingRound = 1; S.playerIdCounter = names.length;
 }
