@@ -5,9 +5,10 @@
 import { sandbox } from './harness.mjs';
 
 export const LEAGUE = '11111111-2222-3333-4444-555555555555';
-export const server = { rows: new Map(), live: null, history: [], pin: '1234', master: null, calls: [], failures: 0, legacy: false };
+// seq: contatore del server assegnato a ogni scrittura di league_docs; noSeq = schema senza la colonna seq
+export const server = { rows: new Map(), live: null, history: [], pin: '1234', master: null, calls: [], failures: 0, legacy: false, seq: 0, noSeq: false };
 
-export function resetServer() { server.rows.clear(); server.live = null; server.history = []; server.master = null; server.calls = []; server.failures = 0; server.legacy = false; }
+export function resetServer() { server.rows.clear(); server.live = null; server.history = []; server.master = null; server.calls = []; server.failures = 0; server.legacy = false; server.seq = 0; server.noSeq = false; }
 // Scrittura sul torneo live + copia in cronologia (in Postgres lo fa il trigger league_live_log)
 export function setLive(live) {
   server.live = live;
@@ -39,11 +40,15 @@ sandbox.fetch = async (url, opts = {}) => {
   };
   if (u.pathname === '/rest/v1/league_docs') {
     const league = u.searchParams.get('league_id').replace('eq.', '');
-    const since = Number(u.searchParams.get('updated_at').replace('gt.', ''));
+    const col = u.searchParams.has('seq') ? 'seq' : 'updated_at';
+    if (col === 'seq' && server.noSeq) return reply(400, { code: '42703', message: 'column league_docs.seq does not exist' });
+    // I test scrivono anche direttamente in server.rows: la riga nuova (o sostituita) prende il seq qui
+    for (const r of server.rows.values()) if (r.seq == null) r.seq = ++server.seq;
+    const since = Number(u.searchParams.get(col).replace('gt.', ''));
     const limit = Number(u.searchParams.get('limit'));
-    const rows = [...server.rows.values()].filter(r => r.league_id === league && r.updated_at > since)
-      .sort((a, b) => a.updated_at - b.updated_at).slice(0, limit);
-    return reply(200, rows.map(r => ({ id: r.id, kind: r.kind, data: r.data, updated_at: r.updated_at })));
+    const rows = [...server.rows.values()].filter(r => r.league_id === league && r[col] > since)
+      .sort((a, b) => a[col] - b[col]).slice(0, limit);
+    return reply(200, rows.map(r => ({ id: r.id, kind: r.kind, data: r.data, [col]: r[col] })));
   }
   if (u.pathname === '/rest/v1/league_live') {
     return reply(200, server.live ? [{ data: server.live.data, updated_at: server.live.updated_at, rev: server.live.rev || 0 }] : []);
@@ -71,7 +76,7 @@ sandbox.fetch = async (url, opts = {}) => {
     let n = 0;
     for (const d of body.p_docs) {
       const cur = server.rows.get(d.id);
-      if (!cur || cur.updated_at < d.updated_at) { server.rows.set(d.id, { league_id: body.p_league, ...d }); n++; }
+      if (!cur || cur.updated_at < d.updated_at) { server.rows.set(d.id, { league_id: body.p_league, ...d, seq: ++server.seq }); n++; }
     }
     return reply(200, server.legacy ? n : { ok: true, written: n });
   }

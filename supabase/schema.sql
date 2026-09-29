@@ -34,6 +34,14 @@ create table if not exists public.league_docs (
   primary key (league_id, id)
 );
 create index if not exists league_docs_updated on public.league_docs (league_id, updated_at);
+-- seq: numero assegnato dal server a ogni scrittura, sempre crescente. L'app scarica "da seq in poi": con
+-- updated_at (l'orologio del telefono che ha scritto) una modifica caricata in ritardo andava persa.
+create sequence if not exists public.league_docs_seq;
+alter table public.league_docs add column if not exists seq bigint;
+update public.league_docs set seq = nextval('public.league_docs_seq') where seq is null;
+alter table public.league_docs alter column seq set default nextval('public.league_docs_seq');
+alter table public.league_docs alter column seq set not null;
+create index if not exists league_docs_seq_idx on public.league_docs (league_id, seq);
 
 create table if not exists public.league_live (
   league_id uuid primary key references public.leagues(id) on delete cascade,
@@ -87,6 +95,9 @@ create policy "lettura cronologia live" on public.league_live_history
 -- ── Verifica del PIN con limite di tentativi ──
 -- Restituisce null se il PIN è giusto, altrimenti il messaggio d'errore. Non solleva eccezioni:
 -- un'eccezione annullerebbe anche la registrazione del tentativo fallito.
+-- Il lock (per lega, fino alla fine della transazione) mette in fila le scritture: il conteggio dei tentativi non
+-- si aggira con richieste in parallelo, e i seq di league_docs diventano visibili nello stesso ordine in cui
+-- sono assegnati (altrimenti chi scarica "da seq in poi" potrebbe saltarne uno ancora da confermare).
 create or replace function public.league_check_pin(p_league uuid, p_pin text)
 returns text
 language plpgsql
@@ -94,6 +105,7 @@ security definer
 set search_path = public, extensions
 as $$
 begin
+  perform pg_advisory_xact_lock(hashtextextended('league:' || p_league::text, 0));
   if (select count(*) from league_pin_failures
       where league_id = p_league and at > now() - interval '15 minutes') >= 10 then
     return 'Troppi PIN sbagliati: riprova tra 15 minuti';
@@ -130,7 +142,7 @@ begin
   select p_league, d->>'id', d->>'kind', d->'data', (d->>'updated_at')::bigint
   from jsonb_array_elements(coalesce(p_docs, '[]'::jsonb)) as d
   on conflict (league_id, id) do update
-    set kind = excluded.kind, data = excluded.data, updated_at = excluded.updated_at
+    set kind = excluded.kind, data = excluded.data, updated_at = excluded.updated_at, seq = nextval('league_docs_seq')
     where league_docs.updated_at < excluded.updated_at;
 
   get diagnostics n = row_count;
@@ -253,6 +265,7 @@ security definer
 set search_path = public, extensions
 as $$
 begin
+  perform pg_advisory_xact_lock(hashtextextended('league:' || p_league::text, 0));
   if (select count(*) from league_pin_failures
       where league_id = p_league and at > now() - interval '15 minutes') >= 10 then
     return jsonb_build_object('error', 'Troppi PIN sbagliati: riprova tra 15 minuti');

@@ -245,3 +245,43 @@ section('Torneo condiviso');
   check('avvio: con un torneo live di un altro telefono chiede prima', sandbox.document.getElementById('modalTitle').textContent === 'Torneo già in corso' && S.T.started === false);
   app.closeModal();
 }
+
+// ── 7. Stato live con markup: ignorato ──
+section('Live: dati da fuori e Realtime');
+{
+  tournament();
+  const snap = { ...app.liveSnapshot(), id: 't_valido', device: 'd_altro', publishedAt: Date.now() };
+  S.live.updatedAt = 0; S.live.rev = 0; S.live.data = null;
+  app.liveApply(snap, null, 1);
+  check('live: stato valido applicato', S.live.data && S.live.data.id === 't_valido');
+  app.liveApply({ ...snap, currentRound: '<img src=x onerror=alert(1)>' }, null, 2);
+  check('live: numeri non validi → aggiornamento ignorato', S.live.data.currentRound === 1 && S.live.rev === 1);
+  app.liveApply({ ...snap, id: "t');alert(1)//" }, null, 3);
+  app.liveApply({ ...snap, players: [{ id: 1, name: 'A', leagueId: '"><b>' }] }, null, 4);
+  check('live: id non validi → aggiornamento ignorato', S.live.data.id === 't_valido' && S.live.rev === 1);
+  check('live: la cronologia accetta gli stati pubblicati dall\'app', app.validLiveState(app.liveSnapshot()));
+}
+
+// ── 8. WebSocket: gli eventi di un socket già sostituito non toccano quello nuovo ──
+{
+  const sockets = [];
+  sandbox.WebSocket = class { constructor(url) { this.url = url; this.sent = []; sockets.push(this); } send(m) { this.sent.push(m); } close() {} };
+  sandbox.document.visibilityState = 'visible';
+  resetServer(); connect('');
+  S.live.started = true;
+  app.liveConnect();
+  const ws1 = sockets[0];
+  ws1.onopen();
+  app.liveDisconnect();   // app in background
+  app.liveConnect();      // e subito di nuovo in primo piano, prima che il vecchio socket sia chiuso
+  const ws2 = sockets[1];
+  ws2.onopen();
+  ws1.onclose();          // arriva ora la chiusura del vecchio
+  await sleep(20);
+  check('realtime: la chiusura del vecchio socket non stacca quello nuovo', S.live.socket === ws2 && sockets.length === 2);
+  ws1.onmessage({ data: JSON.stringify({ topic: 'realtime:mtg-live', event: 'phx_reply', ref: '1', payload: { status: 'error' } }) });
+  ws2.onmessage({ data: JSON.stringify({ topic: 'realtime:mtg-live', event: 'phx_reply', ref: '1', payload: { status: 'ok' } }) });
+  check('realtime: i messaggi del vecchio socket sono ignorati', S.live.joined === true);
+  app.stopLive();
+  delete sandbox.WebSocket; delete sandbox.document.visibilityState;
+}

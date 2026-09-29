@@ -39,7 +39,6 @@ const connect = pin => app.configureSync({ url: 'https://demo.supabase.co/', key
   app.updatePlayer(bruno.id, { emoji: '🐉' });
   const stale = { ...S.L.players[bruno.id], emoji: '🦉', updatedAt: S.L.players[bruno.id].updatedAt - 5 };
   server.rows.set(bruno.id, { league_id: LEAGUE, id: bruno.id, kind: 'player', data: stale, updated_at: stale.updatedAt + 0 });
-  S.syncCfg.lastPull = 0; // riscarica tutto, compreso il documento remoto più vecchio
   await app.syncNow(false);
   check('sync: LWW, la modifica locale più recente resta e viene caricata',
     S.L.players[bruno.id].emoji === '🐉' && server.rows.get(bruno.id).data.emoji === '🐉');
@@ -82,5 +81,65 @@ const connect = pin => app.configureSync({ url: 'https://demo.supabase.co/', key
   const ok = app.applyInviteHash();
   check('invito: link applicato, collegato in sola lettura', ok && app.syncConfigured() && !app.syncCanWrite() && S.syncCfg.name === 'Giovedì');
   sandbox.location.hash = '';
+  app.disconnectSync();
+}
+
+const invite = (u, l = LEAGUE, n = 'Lega') => { sandbox.location.hash = '#join=' + app.b64urlEncode(JSON.stringify({ u, k: 'sb_publishable_abc', l, n })); };
+const modalTitle = () => sandbox.document.getElementById('modalTitle');
+
+// ── 8. Link invito con l'id della lega (pubblico) ma un altro server: il PIN non ci deve arrivare ──
+{
+  resetAll();
+  app.createPlayer('Anna'); app.saveLeague(true);
+  connect('1234');
+  invite('https://evil.example.com');
+  modalTitle().textContent = '';
+  const ok = app.applyInviteHash();
+  check('invito: altro server → chiede conferma invece di collegarsi', ok === false && modalTitle().textContent === 'Cambiare lega?' && S.syncCfg.url === 'https://demo.supabase.co' && S.syncCfg.pin === '1234');
+  const seen = [], orig = sandbox.fetch;
+  sandbox.fetch = (url, o) => { seen.push({ host: new URL(url).host, pin: o && o.body ? JSON.parse(o.body).p_pin : undefined }); return orig(url, o); };
+  sandbox.document.getElementById('modalConfirm').onclick();
+  await new Promise(r => setTimeout(r, 30));
+  sandbox.fetch = orig;
+  check('invito: confermato, collegato in sola lettura senza il PIN', S.syncCfg.url === 'https://evil.example.com' && !app.syncCanWrite());
+  check('invito: il PIN non viene mai mandato all\'altro server', seen.length > 0 && seen.every(c => c.pin == null || c.host !== 'evil.example.com'), JSON.stringify(seen));
+  app.stopLive(); sandbox.location.hash = '';
+}
+
+// ── 9. Link invito della stessa lega: il PIN resta ──
+{
+  resetAll();
+  connect('1234');
+  invite('https://demo.supabase.co/', LEAGUE, 'Giovedì sera');
+  const ok = app.applyInviteHash();
+  check('invito: stessa lega e stesso server → PIN conservato', ok && app.syncCanWrite() && S.syncCfg.name === 'Giovedì sera');
+  invite('javascript:alert(1)');
+  check('invito: URL non https scartato', app.applyInviteHash() === false && S.syncCfg.url === 'https://demo.supabase.co');
+  sandbox.location.hash = '';
+}
+
+// ── 10. Modifica caricata in ritardo (offline o orologio indietro): arriva lo stesso ──
+{
+  resetAll();
+  connect('');
+  const now = Date.now();
+  server.rows.set('p_nuovo', { league_id: LEAGUE, id: 'p_nuovo', kind: 'player', data: { id: 'p_nuovo', name: 'Nuovo', updatedAt: now }, updated_at: now });
+  await app.syncNow(false);
+  const late = now - 30 * 60e3;
+  server.rows.set('p_tardi', { league_id: LEAGUE, id: 'p_tardi', kind: 'player', data: { id: 'p_tardi', name: 'Tardi', updatedAt: late }, updated_at: late });
+  await app.syncNow(false);
+  check('sync: documento più vecchio caricato dopo → scaricato comunque', !!S.L.players['p_tardi']);
+  check('sync: si riparte dal seq del server', S.syncCfg.lastSeq === server.seq && server.calls.some(c => c.path.endsWith('league_docs')));
+}
+
+// ── 11. Schema vecchio senza seq: si ripiega su updated_at ──
+{
+  resetAll();
+  server.noSeq = true;
+  server.rows.set('p_vecchio', { league_id: LEAGUE, id: 'p_vecchio', kind: 'player', data: { id: 'p_vecchio', name: 'Vecchio', updatedAt: 5000 }, updated_at: 5000 });
+  connect('');
+  const ok = await app.syncNow(false);
+  check('sync: schema vecchio → scarica con updated_at', ok && !!S.L.players['p_vecchio'] && S.syncCfg.lastPull === 5000, S.syncState.error);
+  server.noSeq = false;
   app.disconnectSync();
 }

@@ -199,3 +199,22 @@ function archived(date, entrants, final, rounds, extra = {}) {
   } catch (e) { err = e; }
   check('rendering: tutte le viste della lega senza eccezioni', !err, err && err.stack);
 }
+
+// ── 14. Dati da fuori (sync, import): niente markup negli id e nei numeri, niente documenti rotti ──
+{
+  const docs = app.leagueDocs();
+  check('validazione: tutti i documenti creati dall\'app sono validi', docs.length > 0 && docs.every(d => d.kind === 'player' ? app.validPlayerDoc(d.data) : app.validTournamentDoc(d.data)));
+  const t = JSON.parse(JSON.stringify(Object.values(S.L.tournaments)[0]));
+  const bad = [
+    { kind: 'player', data: { id: "p_x');alert(1)//", name: 'X', updatedAt: 1 } },
+    { kind: 'player', data: { id: 'p_y', name: 'Y', mergedInto: '"><img>', updatedAt: 1 } },
+    { kind: 'tournament', data: { ...t, id: 't_num', rounds: [[{ ...t.rounds[0][0], p1wins: '<img src=x onerror=alert(1)>' }]], updatedAt: Date.now() + 1e6 } },
+    { kind: 'tournament', data: { ...t, id: 't_date', date: 20260101, updatedAt: Date.now() + 1e6 } },
+    { kind: 'tournament', data: { ...t, id: 't_noent', entrants: undefined, updatedAt: Date.now() + 1e6 } },
+    { kind: 'tournament', data: { ...t, id: 't_season', season: '<b>', updatedAt: Date.now() + 1e6 } },
+  ];
+  check('validazione: documenti con id o numeri non validi scartati', app.mergeLeagueDocs(bad, false) === 0 && !S.L.players.p_y && !S.L.tournaments.t_num && !S.L.tournaments.t_date);
+  const ok = app.mergeLeagueDocs([{ kind: 'player', data: { id: 'p_emo', name: 'Emo', emoji: '<img src=x onerror=alert(1)>', updatedAt: 1 } }], false);
+  const html = app.whoHtml('p_emo');
+  check('validazione: l\'emoji arriva ma viene escapata', ok === 1 && !html.includes('<img') && html.includes('&lt;img'));
+}

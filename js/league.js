@@ -16,6 +16,30 @@ function uid(prefix) {
 }
 function isoDate(d) { d = d || new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 
+// ── Validazione di quello che arriva da fuori (sync, import, torneo live) ──
+// Id e numeri finiscono dentro innerHTML e onclick senza escape: chi ha il PIN (o un server diverso aperto da un
+// link invito) non deve poter iniettare markup, e un documento malformato non deve rompere il tab Lega.
+const safeId = id => typeof id === 'string' && /^[\w-]{1,64}$/.test(id);
+const isStr = s => typeof s === 'string';
+const isScore = n => Number.isInteger(n) && n >= 0 && n <= 9;
+function validMatch(m, isId) {
+  return !!m && typeof m === 'object' && isId(m.p1) && (m.p2 == null || isId(m.p2))
+    && (m.p1wins == null || isScore(m.p1wins)) && (m.p2wins == null || isScore(m.p2wins)) && (m.draws == null || isScore(m.draws));
+}
+function validPlayerDoc(p) {
+  return safeId(p.id) && isStr(p.name) && (p.emoji == null || isStr(p.emoji)) && (p.mergedInto == null || safeId(p.mergedInto));
+}
+function validTournamentDoc(t) {
+  const ids = a => Array.isArray(a) && a.every(safeId);
+  const obj = o => !!o && typeof o === 'object' && !Array.isArray(o);
+  return safeId(t.id) && isStr(t.date) && /^\d{4}-\d{2}-\d{2}$/.test(t.date) && (t.season == null || /^\d{4}$/.test(t.season))
+    && ids(t.entrants) && ids(t.final) && (t.dropped == null || ids(t.dropped))
+    && Array.isArray(t.rounds) && t.rounds.every(r => Array.isArray(r) && r.every(m => validMatch(m, safeId)))
+    && (t.decks == null || (obj(t.decks) && Object.entries(t.decks).every(([k, v]) => safeId(k) && isStr(v))))
+    && (t.names == null || (obj(t.names) && Object.values(t.names).every(isStr)))
+    && (t.set == null || isStr(t.set));
+}
+
 // ── Persistenza ──
 function loadLeague() {
   try {
@@ -40,9 +64,9 @@ function touch(doc) {
 function mergeLeagueDocs(docs, markDirty) {
   let changed = 0;
   for (const { kind, data } of docs) {
-    if (!data || !data.id) continue;
+    if (!data || typeof data !== 'object') continue;
     const coll = kind === 'player' ? L.players : kind === 'tournament' ? L.tournaments : null;
-    if (!coll) continue;
+    if (!coll || !(kind === 'player' ? validPlayerDoc(data) : validTournamentDoc(data))) continue;
     const local = coll[data.id];
     if (!local || (data.updatedAt || 0) > (local.updatedAt || 0)) {
       coll[data.id] = data; changed++;
@@ -65,7 +89,8 @@ function canonicalId(id) { const p = resolvePlayer(id); return p ? p.id : id; }
 function leaguePlayers() { return Object.values(L.players).filter(p => !p.deleted && !p.mergedInto); }
 function findPlayerByName(name) { const n = String(name).trim().toLowerCase(); return leaguePlayers().find(p => p.name.toLowerCase() === n) || null; }
 function leagueName(id) { const p = resolvePlayer(id); return p ? p.name : '?'; }
-function leagueEmoji(id) { const p = resolvePlayer(id); return (p && p.emoji) || '🙂'; }
+// HTML: l'emoji è un testo libero del documento, va escapato come il nome
+function leagueEmoji(id) { const p = resolvePlayer(id); return esc((p && p.emoji) || '🙂'); }
 function createPlayer(name, emoji) {
   const p = { id: uid('p'), name: String(name).trim(), emoji: emoji || PLAYER_EMOJIS[Math.floor(Math.random() * PLAYER_EMOJIS.length)], createdAt: Date.now() };
   L.players[p.id] = touch(p);

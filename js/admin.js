@@ -43,7 +43,6 @@ function refreshAfterMaster() { renderSyncBox(); if (T.started) renderRound(true
 // Ogni scrittura su league_live finisce in league_live_history (trigger sul server, ultimi 14 giorni).
 // Si leggono solo i campi leggeri; lo stato completo si scarica solo per la versione da ripristinare.
 const HIST_COLS = 'rev,updated_at,tid:data->>id,device:data->>device,by:data->>by,note:data->>note,round:data->>currentRound,total:data->>totalRounds,ended:data->>ended,set:data->>set';
-const safeId = id => typeof id === 'string' && /^[\w-]+$/.test(id); // finisce dentro onclick
 async function historyQuery(params) {
   const res = await fetch(`${syncCfg.url}/rest/v1/league_live_history?league_id=eq.${encodeURIComponent(syncCfg.league)}&${params}`, { headers: sbHeaders() });
   if (!res.ok) throw await sbError(res);
@@ -105,7 +104,7 @@ function confirmRestore(tid, rev) {
     let rows;
     try { rows = await historyQuery(`select=data,updated_at&rev=eq.${Number(rev)}`); } catch (e) { toast(e.message || 'Errore di rete'); return; }
     const d = rows[0] && rows[0].data;
-    if (!d || d.id !== tid) { toast('Versione non trovata'); return; }
+    if (!d || d.id !== tid || !validLiveState(d)) { toast('Versione non trovata'); return; }
     const when = histWhen(rows[0].updated_at);
     const otherLive = live.data && live.data.started && !live.data.ended && live.data.id !== tid;
     const otherLocal = T.started && !T.ended && T.id !== tid;

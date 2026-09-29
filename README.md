@@ -54,9 +54,9 @@ Da zero, per una lega nuova:
 4. Metti Project URL, chiave publishable (Project Settings → API Keys) e id lega in `js/config.js`. **Mai la secret key.**
 5. Facoltativo: imposta il PIN master (istruzioni in fondo a `schema.sql`).
 
-In alternativa, **Lega → Dati e sync → Avanzate → Altra lega** collega a mano un'altra lega (e da lì si genera un link invito).
+In alternativa, **Lega → Dati e sync → Avanzate → Altra lega** collega a mano un'altra lega (e da lì si genera un link invito). Il link invito collega in sola lettura: il PIN non viaggia nel link e non passa mai a un'altra lega; se il telefono è già collegato a una lega diversa, l'app chiede conferma prima di cambiarla.
 
-Sicurezza: URL e chiave publishable sono pubblici per natura (e sono nel repo). Con quelli si può solo **leggere**; ogni scrittura passa da `league_push` / `league_live_sync`, che verificano il PIN, e dopo **10 PIN sbagliati in 15 minuti** la lega rifiuta le scritture per 15 minuti. Usa un PIN di almeno 6 caratteri. Conflitti tra telefoni: vince la modifica più recente per ogni giocatore/torneo archiviato; il torneo live (uno per lega) si scrive a revisioni, così più telefoni possono gestirlo insieme.
+Sicurezza: URL e chiave publishable sono pubblici per natura (e sono nel repo). Con quelli si può solo **leggere**; ogni scrittura passa da `league_push` / `league_live_sync`, che verificano il PIN, e dopo **10 PIN sbagliati in 15 minuti** la lega rifiuta le scritture per 15 minuti (il blocco vale per tutta la lega: chi conosce URL e id lega può farlo scattare apposta, ma non indovinare il PIN). Usa un PIN di almeno 6 caratteri. I dati che arrivano dal server o da un backup vengono validati (id e numeri) prima di finire nell'interfaccia. Conflitti tra telefoni: vince la modifica più recente per ogni giocatore/torneo archiviato, e ogni telefono scarica le novità in base a un contatore del server (`seq`), non all'orologio di chi ha scritto; il torneo live (uno per lega) si scrive a revisioni, così più telefoni possono gestirlo insieme.
 
 ## Struttura
 
@@ -88,8 +88,8 @@ node tests/run-tests.mjs
 L'harness (`tests/harness.mjs`) carica gli script nell'ordine di `index.html` (tranne `config.js`: i test non toccano il Supabase vero) in una sandbox Node con DOM finto. `tests/mock-supabase.mjs` è un finto Supabase con lo stesso contratto di `schema.sql`. Cinque suite:
 - `tournament.test.mjs` — tiebreaker, GW% con ID/bye, pairing (anche performance a 16 giocatori), round robin, drop/forfeit, undo, tavolo, UX
 - `league.test.mjs` — archivio, campionato, Elo, scontri diretti, unione profili, achievement, import/export, colori, colpaccio, rendering
-- `sync.test.mjs` — primo caricamento, modifiche remote, last-write-wins, PIN errato, sola lettura, paginazione, link invito
-- `live.test.mjs` — lega predefinita, verifica PIN e blocco anti forza bruta, pubblicazione live, vista "Segui live", Realtime, torneo gestito da più telefoni (conflitti, round concorrenti, unione, distacco)
+- `sync.test.mjs` — primo caricamento, modifiche remote, last-write-wins, PIN errato, sola lettura, paginazione, link invito (anche verso un altro server), modifiche caricate in ritardo, schema senza `seq`
+- `live.test.mjs` — lega predefinita, verifica PIN e blocco anti forza bruta, pubblicazione live, vista "Segui live", Realtime, torneo gestito da più telefoni (conflitti, round concorrenti, unione, distacco), stati live non validi, WebSocket riaperto
 - `admin.test.mjs` — PIN master, cronologia e ripristino (anche di un torneo sostituito), correzione di round chiusi, tornei eliminati
 
 ## Deploy

@@ -32,10 +32,18 @@ Tutte le fasi dell'audit 2026-05 sono completate e mergiate:
 | Last-round standings-sort | ✅ Rimosso (MTR standard, decisione utente) |
 | R1 cross-table | ✅ Documentato (testo in UI + README): intenzionale per i pod di draft |
 | Soglia n<4 | ✅ Wontfix (vedi decisioni) |
-| Editing round Swiss passati (judge override) | 📋 Issue [#4](https://github.com/d-jacki/mtg-draft/issues/4) |
+| Editing round Swiss passati (judge override) | ✅ Fatto — correzione dei round chiusi in modalità PIN master (issue [#4](https://github.com/d-jacki/mtg-draft/issues/4)) |
 
 ## Test
 
-`node tests/run-tests.mjs` — 25 assert su: scenario 3 (GW% 7/15), bye MTR, floor 0.33, catena tiebreaker, H2H circolare stabile, pairing R2 senza rematch, bye a rotazione, schedule RR a 5, guard RR pari, drop→forfeit, undo→ripristino drop.
+`node tests/run-tests.mjs` — nato con 25 assert su: scenario 3 (GW% 7/15), bye MTR, floor 0.33, catena tiebreaker, H2H circolare stabile, pairing R2 senza rematch, bye a rotazione, schedule RR a 5, guard RR pari, drop→forfeit, undo→ripristino drop. Oggi copre anche lega, sync, live e master: l'elenco delle suite è nel README.
 
 Eseguirli prima di ogni push (vedi README).
+
+## Check 2026-09-30
+
+- **Link invito**: il PIN restava se l'id lega coincideva, anche con un altro server → mandato a quel server alla prima scrittura. Ora il PIN non segue mai il link e cambiare lega da link chiede conferma.
+- **Sync**: si scaricava "da updated_at in poi" con l'orologio del telefono che scrive → modifiche caricate in ritardo perse. Ora cursore `seq` assegnato dal server (schema.sql da rilanciare; senza, l'app ripiega su updated_at).
+- **Dati da fuori**: documenti della lega e stato live validati (id, numeri) prima di finire in innerHTML/onclick; emoji escapata.
+- **Realtime**: gli eventi di un WebSocket già sostituito non staccano più quello nuovo.
+- **Schema**: advisory lock per lega nelle funzioni con PIN (tentativi contati in modo atomico, seq visibili in ordine).

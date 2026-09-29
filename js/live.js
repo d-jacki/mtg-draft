@@ -253,8 +253,22 @@ function liveBadgeHtml() {
 function renderLiveBadge() { const b = document.getElementById('liveBadge'); if (b && b.outerHTML !== undefined) b.outerHTML = liveBadgeHtml() || '<span id="liveBadge"></span>'; }
 
 // ── Lettura (tutti i telefoni della lega) ──
+// Stato live arrivato dal server: numeri e id finiscono nell'HTML della vista "Segui" e negli onclick (vedi league.js)
+function validLiveState(d) {
+  if (d == null) return true;
+  const pid = n => Number.isInteger(n) && n > 0, num = n => n == null || Number.isFinite(n);
+  const round = n => Number.isInteger(n) && n >= 0 && n <= 99;
+  return typeof d === 'object' && (d.id == null || safeId(d.id)) && round(d.currentRound) && round(d.totalRounds)
+    && Array.isArray(d.players) && d.players.every(p => p && pid(p.id) && isStr(p.name) && (p.leagueId == null || safeId(p.leagueId)))
+    && Array.isArray(d.rounds) && d.rounds.every(r => r && Array.isArray(r.pairings) && r.pairings.every(m => validMatch(m, pid)))
+    && (d.draftOrder == null || (Array.isArray(d.draftOrder) && d.draftOrder.every(pid)))
+    && (d.decks == null || (typeof d.decks === 'object' && Object.values(d.decks).every(isStr)))
+    && (d.set == null || isStr(d.set)) && num(d.publishedAt)
+    && (d.timer == null || (typeof d.timer === 'object' && num(d.timer.total) && num(d.timer.seconds) && num(d.timer.startedAt)));
+}
 // Ordine degli aggiornamenti: revisione del server (updated_at per gli stati senza revisione)
 function liveApply(data, updatedAt, rev) {
+  if (!validLiveState(data)) return;
   if (rev != null) { if (Number(rev) < live.rev) return; live.rev = Number(rev); }
   else if (updatedAt != null && Number(updatedAt) < live.updatedAt) return;
   if (updatedAt != null) live.updatedAt = Math.max(live.updatedAt, Number(updatedAt));
@@ -309,7 +323,11 @@ function liveConnect() {
   let ws;
   try { ws = new WebSocket(`${syncCfg.url.replace(/^http/, 'ws')}/realtime/v1/websocket?apikey=${encodeURIComponent(syncCfg.key)}&vsn=1.0.0`); } catch (e) { return; }
   live.socket = ws; live.joined = false; live.ref = 0;
+  // Gli eventi di un socket già sostituito (chiuso andando in background e riaperto subito) non devono toccare
+  // quello nuovo: azzererebbero live.socket e il suo heartbeat e aprirebbero un terzo socket
+  const stale = () => live.socket !== ws;
   ws.onopen = () => {
+    if (stale()) return;
     const payload = { config: { broadcast: { ack: false, self: false }, presence: { key: '' }, private: false,
       postgres_changes: [{ event: '*', schema: 'public', table: 'league_live', filter: `league_id=eq.${syncCfg.league}` }] } };
     if (syncCfg.key.startsWith('eyJ')) payload.access_token = syncCfg.key;
@@ -317,8 +335,9 @@ function liveConnect() {
     clearInterval(live.hb);
     live.hb = setInterval(() => { try { wsSend(ws, 'phoenix', 'heartbeat', {}); } catch (e) {} }, 25000);
   };
-  ws.onmessage = e => { try { liveOnMessage(JSON.parse(e.data)); } catch (err) {} };
+  ws.onmessage = e => { if (stale()) return; try { liveOnMessage(JSON.parse(e.data)); } catch (err) {} };
   ws.onclose = () => {
+    if (stale()) return;
     clearInterval(live.hb); live.socket = null; live.joined = false;
     if (live.started && syncConfigured() && document.visibilityState !== 'hidden') setTimeout(liveConnect, Math.min(30000, 2000 * 2 ** live.retry++));
   };
