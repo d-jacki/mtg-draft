@@ -161,6 +161,7 @@ body {
 .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
 .btn-danger { background: var(--red); color: #fff; }
 .btn-secondary { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:disabled { opacity: 0.35; cursor: default; transform: none; }
 .btn-sm { padding: 8px 14px; font-size: 0.82rem; width: auto; border-radius: var(--radius-xs); min-height: 44px; }
 .btn-row { display: flex; gap: 8px; margin-top: 12px; }
 .btn-add { width: auto; min-width: 56px; font-size: 1.4rem; font-weight: 600; }
@@ -200,6 +201,8 @@ input::placeholder { color: var(--text-dim); }
   padding: 0 12px;
 }
 .player-remove:active { background: var(--red); color: #fff; }
+/* Torneo avviato: la lista giocatori resta visibile ma non si tocca */
+.player-remove:disabled { display: none; }
 
 /* ── Seat list ── */
 .seat-item {
@@ -246,6 +249,20 @@ input::placeholder { color: var(--text-dim); }
   font-size: 0.6rem; color: var(--text-dim); font-weight: 700;
   text-transform: uppercase; letter-spacing: 1.5px;
 }
+
+/* Tavolo lungo (molti giocatori): due file di posti ai lati, nomi verso l'esterno */
+.long-table { display: grid; grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); column-gap: 6px; row-gap: 6px; margin: 8px 0; }
+.long-table-top {
+  grid-column: 2; border: 2px dashed var(--border); border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  writing-mode: vertical-rl; font-size: 0.6rem; color: var(--text-dim); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.5px;
+}
+.lt-seat { display: flex; align-items: center; gap: 6px; min-height: 34px; min-width: 0; }
+.lt-seat.left { grid-column: 1; flex-direction: row-reverse; text-align: right; }
+.lt-seat.right { grid-column: 3; }
+.lt-seat .draft-seat-num { margin-bottom: 0; flex: none; }
+.lt-name { font-size: 0.73rem; font-weight: 600; line-height: 1.25; min-width: 0; overflow-wrap: break-word; }
 
 /* ── Pairing preview ── */
 .vs-line { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
@@ -308,6 +325,12 @@ input::placeholder { color: var(--text-dim); }
 }
 .score-btn:active { transform: scale(0.93); background: var(--accent-light); border-color: var(--accent); }
 .score-btn.draw-btn { font-size: 0.78rem; color: var(--text-dim); border-style: dashed; }
+/* I quattro risultati più ID su una riga: altrimenti ID va a capo da solo */
+.match-score-btns.main { flex-wrap: nowrap; gap: 6px; }
+.match-score-btns.main .score-btn { flex: 1 1 0; min-width: 0; padding-left: 2px; padding-right: 2px; }
+.drop-row { display: flex; gap: 8px; }
+.drop-row select { flex: 1; min-width: 0; }
+.drop-row .btn { flex: none; }
 .more-results { margin: 0 16px 10px; }
 .more-results > summary {
   display: flex; align-items: center; justify-content: center;
@@ -448,6 +471,7 @@ input::placeholder { color: var(--text-dim); }
   display: inline-block; padding: 3px 8px; border-radius: var(--radius-xs);
   font-size: 0.6rem; font-weight: 800; text-transform: uppercase;
   letter-spacing: 0.8px; margin-left: 6px; vertical-align: middle;
+  font-family: 'Plus Jakarta Sans', sans-serif; /* dentro i titoli non deve prendere il serif */
 }
 .mode-badge.swiss { background: var(--accent-light); color: var(--accent-dark); }
 .mode-badge.rr { background: var(--warm-light); color: var(--warm); }
@@ -623,7 +647,9 @@ select {
 .who-emoji { flex: none; }
 .who-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .who-titles { font-size: 0.8em; letter-spacing: 1px; }
-.league-table td:nth-child(2) { max-width: 150px; overflow: hidden; }
+/* Come in classifica: la colonna nome prende lo spazio rimasto e si tronca, così la tabella non esce dalla card */
+.league-table td:nth-child(2) { width: 100%; max-width: 0; overflow: hidden; }
+.league-table td { white-space: nowrap; }
 .league-table td { font-variant-numeric: tabular-nums; }
 .spark { display: block; }
 
@@ -781,8 +807,8 @@ button.pip { width: 36px; height: 36px; font-size: 0.8rem; cursor: pointer; marg
 .sync-adv { margin-top: 12px; }
 .sync-adv > summary { cursor: pointer; font-size: 0.8rem; font-weight: 700; color: var(--text-dim); min-height: 36px; display: flex; align-items: center; gap: 6px; list-style: none; }
 .sync-adv > summary::-webkit-details-marker { display: none; }
-.sync-adv > summary::after { content: 'BE'; font-size: 0.75rem; }
-.sync-adv[open] > summary::after { content: 'B4'; }
+.sync-adv > summary::after { content: '\25BE'; font-size: 0.75rem; }
+.sync-adv[open] > summary::after { content: '\25B4'; }
 .kv + .text-xs { margin-top: 10px; }
 
 /* ── Cronologia e strumenti master ── */

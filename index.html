@@ -35,7 +35,7 @@
   <div id="liveBanner"></div>
   <div class="card">
     <div class="card-title">Giocatori</div>
-    <div style="display:flex;gap:8px;">
+    <div style="display:flex;gap:8px;" id="addPlayerRow">
       <input type="text" id="playerInput" placeholder="Nome giocatore" autocomplete="off" maxlength="40" aria-label="Nome giocatore" />
       <button class="btn btn-primary btn-sm btn-add" onclick="addPlayer()" aria-label="Aggiungi giocatore">+</button>
     </div>
@@ -53,7 +53,7 @@
       <div class="card-title" style="margin:0;">Ordine al tavolo</div>
       <button class="btn btn-secondary btn-sm" id="reshuffleBtn" onclick="reshuffleDraft()">Rimescola</button>
     </div>
-    <div class="text-xs text-dim mb">Usa le frecce per spostare i giocatori. Al round 1 si scontrano i lati opposti.</div>
+    <div class="text-xs text-dim mb" id="seatHint">Usa le frecce per spostare i giocatori. Al round 1 si scontrano i lati opposti.</div>
     <div id="seatList"></div>
   </div>
   <div class="card" style="overflow:visible;">

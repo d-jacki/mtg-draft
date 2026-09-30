@@ -151,6 +151,8 @@ function renderDraftVisual() {
   const seatW = 80;
   const maxRadius = Math.floor((containerW - seatW) / 2) - 4;
   const radius = Math.min(maxRadius, Math.min(120, 90 + n * 3));
+  // Troppi giocatori per il cerchio (posti vicini che si sovrappongono): tavolo lungo, stesso giro in senso orario
+  if (2 * radius * Math.sin(Math.PI / n) < 68) { renderLongTable(ids); return; }
   const size = (radius + seatW / 2 + 4) * 2, cx = size / 2, cy = size / 2;
   let h = `<div class="draft-table" style="width:${size}px;height:${size}px;"><div class="draft-table-center">Tavolo</div>`;
   ids.forEach((id, i) => {
@@ -159,9 +161,21 @@ function renderDraftVisual() {
   });
   $id('draftVisual').innerHTML = h + '</div>';
 }
+// Lato destro dall'alto in basso, poi lato sinistro dal basso in alto: il posto opposto nel giro sta di fronte
+function renderLongTable(ids) {
+  const n = ids.length, half = Math.ceil(n / 2), rows = [];
+  const seat = (i, side) => { if (i == null) return `<div class="lt-seat ${side}"></div>`; const p = P(ids[i]); return `<div class="lt-seat ${side}"><span class="draft-seat-num">${i + 1}</span><span class="lt-name">${esc(p ? p.name : '?')}</span></div>`; };
+  for (let r = 0; r < half; r++) { const l = n - 1 - r; rows.push(seat(l >= half ? l : null, 'left') + seat(r, 'right')); }
+  $id('draftVisual').innerHTML = `<div class="long-table" style="grid-template-rows:repeat(${half},auto);"><div class="long-table-top" style="grid-row:1/span ${half};">Tavolo</div>${rows.join('')}</div>`;
+}
 function renderPairingPreview() {
   const o = T.draftOrder, n = o.length, half = Math.floor(n / 2); let h = '';
-  if (n % 2 === 0) {
+  // Torneo avviato: gli accoppiamenti veri del round 1 (bye o riposo compresi), non l'anteprima
+  const r1 = T.started && T.rounds[0];
+  if (r1) {
+    $id('previewTitle').textContent = 'Accoppiamenti Round 1';
+    r1.pairings.forEach((m, i) => { const a = P(m.p1), b = m.p2 ? P(m.p2) : null; h += `<div class="vs-line"><span class="vs-label">${m.rest ? '—' : m.bye ? 'Bye' : 'T' + (i + 1)}</span><span class="vs-names">${esc(a ? a.name : '?')}${m.rest ? ' riposa' : b ? ' vs ' + esc(b.name) : ''}</span></div>`; });
+  } else if (n % 2 === 0) {
     $id('previewTitle').textContent = 'Accoppiamenti Round 1';
     for (let i = 0; i < half; i++) { const p1 = T.players.find(p => p.id === o[i]), p2 = T.players.find(p => p.id === o[i + half]); h += `<div class="vs-line"><span class="vs-label">T${i + 1}</span><span class="vs-names">${esc(p1.name)} vs ${esc(p2.name)}</span></div>`; }
   } else {
@@ -221,6 +235,8 @@ function startWithMode(mode, rounds, timerMin) {
 function lockSetup() {
   $id('screen-setup').querySelectorAll('input, button').forEach(el => el.disabled = true);
   $id('startBtn').classList.add('hidden'); $id('reshuffleBtn').classList.add('hidden');
+  // Torneo avviato: restano solo le liste, niente controlli disattivati che sembrano ancora toccabili
+  ['addPlayerRow', 'rosterChips', 'goToSeatingBtn', 'seatHint'].forEach(id => $id(id).classList.add('hidden'));
 }
 // Torneo avviato caricato da fuori (ripristino all'avvio, oppure unendosi al torneo di un altro telefono)
 function showStartedTournament() {
@@ -284,7 +300,7 @@ function getPlayerMatches(pid) {
       const is1 = m.p1 === pid, opp = T.players.find(p => p.id === (is1 ? m.p2 : m.p1));
       const mg = is1 ? m.p1wins : m.p2wins, og = is1 ? m.p2wins : m.p1wins;
       const res = mg > og ? 'W' : mg < og ? 'L' : 'D';
-      const score = T.mode === 'roundrobin' ? (res === 'W' ? 'Vinto' : res === 'L' ? 'Perso' : 'Pari') : `${mg}-${og}`;
+      const score = T.mode === 'roundrobin' ? (res === 'W' ? 'Vinto' : res === 'L' ? 'Perso' : 'Pari') : `${mg}-${og}${m.draws ? '-' + m.draws : ''}`;
       matches.push({ round: ri+1, opp: opp ? opp.name : '?', result: res, score });
     }
   }); }); return matches;
@@ -432,7 +448,7 @@ function renderRound(keepScroll){
   const round=T.rounds[viewingRound-1];
   const real=round?round.pairings.filter(m=>!m.rest&&!m.bye):[],done=real.filter(m=>m.p1wins!==null).length,tot=real.length;
   let h='';
-  if(round)h+=renderStickyBar(done,tot,isRR);
+  if(round&&!T.ended)h+=renderStickyBar(done,tot,isRR);
   h+=`<div class="card" style="padding:12px 16px;"><div class="flex-between"><button class="btn btn-secondary btn-sm" onclick="viewRound(${viewingRound-1})" ${viewingRound<=1?'disabled':''} aria-label="Round precedente">←</button><span style="font-weight:800;font-size:0.95rem;">Round ${viewingRound} <span style="font-weight:500;color:var(--text-dim);">/ ${T.totalRounds}</span> <span class="mode-badge ${isRR?'rr':'swiss'}">${isRR?'BO1':'Swiss'}</span>${liveBadgeHtml()}</span><button class="btn btn-secondary btn-sm" onclick="viewRound(${viewingRound+1})" ${viewingRound>=maxNav?'disabled':''} aria-label="Round successivo">→</button></div>${round&&!T.ended?`<button class="btn btn-secondary btn-sm" style="width:100%;margin-top:10px;" onclick="openAnnounce()">📣 Annuncia pairing</button>`:''}</div>`;
   if(!round){C.innerHTML=h;return;}
   // Round Swiss già chiusi: modificabili solo in modalità master (correzione di un errore)
@@ -442,7 +458,7 @@ function renderRound(keepScroll){
   for(let i=0;i<round.pairings.length;i++){
     const m=round.pairings[i],p1=T.players.find(p=>p.id===m.p1),p2=m.p2?T.players.find(p=>p.id===m.p2):null;
     if(m.rest){h+=`<div class="match-card rest"><div class="match-header"><span>Riposo</span><span>—</span></div><div class="match-players"><div class="match-player text-dim">${esc(p1.name)} riposa</div></div></div>`;continue;}
-    if(m.bye){h+=`<div class="match-card bye"><div class="match-header"><span>Tavolo ${i+1}</span><span>BYE</span></div><div class="match-players"><div class="match-player">${esc(p1.name)}</div><div class="match-vs">bye</div><div class="match-player text-dim">2 – 0</div></div></div>`;continue;}
+    if(m.bye){h+=`<div class="match-card bye"><div class="match-header"><span>Bye</span><span>—</span></div><div class="match-players"><div class="match-player">${esc(p1.name)}</div><div class="match-vs">bye</div><div class="match-player text-dim">2 – 0</div></div></div>`;continue;}
     const has=m.p1wins!==null;if(!has&&!firstInc)firstInc=`match-${viewingRound}-${i}`;
     const flash=(lastScoredMatch===i)?'flash-scored':'',forf=m.forfeit?'forfeit':'';
     const w1=has&&m.p1wins>m.p2wins?'winner':'',w2=has&&m.p2wins>m.p1wins?'winner':'';
@@ -459,13 +475,13 @@ function renderRound(keepScroll){
 }
 
 function renderSwissActions(round){const allDone=round.pairings.every(m=>m.p1wins!==null);let h='<div class="card" style="padding:14px;">';const act=getActivePlayers();
-  if(act.length>2){h+=`<div class="mb"><select id="dropSel" aria-label="Seleziona giocatore da ritirare"><option value="">Ritira giocatore...</option>${act.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div><button class="btn btn-danger btn-sm mb" onclick="dropPlayer()">Ritira dal torneo</button>`;}
+  if(act.length>2){h+=`<div class="drop-row mb"><select id="dropSel" aria-label="Seleziona giocatore da ritirare"><option value="">Ritira giocatore...</option>${act.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button class="btn btn-danger btn-sm" onclick="dropPlayer()">Ritira</button></div>`;}
   if(allDone){h+=T.currentRound<T.totalRounds?'<button class="btn btn-primary" onclick="nextRound()">Round successivo →</button>':'<button class="btn btn-primary" onclick="confirmEnd()">Termina torneo</button>';}
   if(T.currentRound>1)h+=`<button class="btn btn-secondary mt" onclick="confirmUndo()">Annulla round</button>`;return h+historyBtn()+'</div>';}
 // Cronologia delle modifiche del torneo condiviso (admin.js)
-function historyBtn(){return typeof syncConfigured==='function'&&syncConfigured()&&T.id?`<button class="btn btn-secondary btn-sm mt" onclick="openHistory('${T.id}')">🕘 Cronologia modifiche</button>`:'';}
+function historyBtn(){return typeof syncConfigured==='function'&&syncConfigured()&&T.id?`<button class="btn btn-secondary btn-sm mt" style="width:100%;" onclick="openHistory('${T.id}')">🕘 Cronologia modifiche</button>`:'';}
 function renderRRActions(){const allDone=T.rounds.every(r=>r.pairings.filter(m=>!m.rest).every(m=>m.p1wins!==null));let h='<div class="card" style="padding:14px;">';const act=getActivePlayers();
-  if(act.length>2){h+=`<div class="mb"><select id="dropSel" aria-label="Seleziona giocatore da ritirare"><option value="">Ritira giocatore...</option>${act.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div><button class="btn btn-danger btn-sm mb" onclick="dropPlayer()">Ritira dal torneo</button>`;}
+  if(act.length>2){h+=`<div class="drop-row mb"><select id="dropSel" aria-label="Seleziona giocatore da ritirare"><option value="">Ritira giocatore...</option>${act.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button class="btn btn-danger btn-sm" onclick="dropPlayer()">Ritira</button></div>`;}
   if(allDone)h+='<button class="btn btn-primary" onclick="confirmEnd()">Termina torneo</button>';
   else{const next=T.rounds.findIndex(r=>r.pairings.some(m=>!m.rest&&m.p1wins===null));if(next>=0&&next!==viewingRound-1)h+=`<button class="btn btn-secondary" onclick="viewRound(${next+1})">Vai a Round ${next+1}</button>`;}
   return h+historyBtn()+'</div>';}
@@ -475,7 +491,7 @@ function swissBtns(idx,m){const n1=shortName(m.p1),n2=shortName(m.p2);
   const more=[[1,0,0,'1–0'],[0,1,0,'0–1'],[1,1,0,'1–1'],[1,0,1,'1–0–1'],[0,1,1,'0–1–1'],[2,0,1,'2–0–1'],[0,2,1,'0–2–1'],[1,1,1,'1–1–1'],[0,0,1,'0–0–1']];
   const mkBtn=s=>`<button class="score-btn" onclick="setRes(${viewingRound-1},${idx},${s[0]},${s[1]},${s[2]})">${s[3]}</button>`;
   return `<div style="padding:4px 16px;font-size:0.72rem;color:var(--text-dim);text-align:center;font-weight:600;">${esc(n1)} — ${esc(n2)}</div>`
-    +`<div class="match-score-btns">${main.map(mkBtn).join('')}<button class="score-btn draw-btn" onclick="setRes(${viewingRound-1},${idx},0,0,1)" title="Pareggio intenzionale (0 partite giocate, 1 punto a testa)">ID</button></div>`
+    +`<div class="match-score-btns main">${main.map(mkBtn).join('')}<button class="score-btn draw-btn" onclick="setRes(${viewingRound-1},${idx},0,0,1)" title="Pareggio intenzionale (0 partite giocate, 1 punto a testa)">ID</button></div>`
     +`<details class="more-results"><summary aria-label="Mostra altri risultati per fine tempo">Altri risultati…<button class="score-info-btn" type="button" aria-label="Cosa significano i numeri?" onclick="event.preventDefault();event.stopPropagation();showScoreInfo();">?</button></summary><div class="match-score-btns">${more.map(mkBtn).join('')}</div></details>`;}
 function rrBtns(idx,m){const n1=shortName(m.p1),n2=shortName(m.p2);
   return `<div class="match-score-btns"><button class="score-btn win-btn" onclick="setRes(${viewingRound-1},${idx},1,0,0)">${esc(n1)}</button><button class="score-btn win-btn" onclick="setRes(${viewingRound-1},${idx},0,1,0)">${esc(n2)}</button></div>`;}
@@ -579,7 +595,7 @@ function renderStandings(){
       const rec=isRR?`${p.record.wins}-${p.record.losses}`:`${p.record.wins}-${p.record.losses}-${p.record.draws}`;
       let dCell='';
       if(deltas){const d=deltas.get(p.id)||0;dCell=`<td><span class="standings-delta ${d>0?'up':d<0?'down':'flat'}">${d>0?'▲'+d:d<0?'▼'+(-d):'–'}</span></td>`;}
-      return `<tr onclick="togglePlayer(${p.id})" tabindex="0" role="button" aria-expanded="${expandedPlayer===p.id}" class="${p.dropped?'dropped':''} ${i<3?'top3':''}"><td class="standings-rank">${rank}</td><td class="standings-name">${esc(p.name)}${p.dropped?' ✗':''} <span class="who-titles">${leagueTitles(tournamentLid(p))}</span></td><td class="standings-record">${rec}</td><td>${p.mp}</td>${dCell}</tr>${expandedPlayer===p.id?`<tr><td colspan="${cols}" class="detail-cell" style="padding:0;">${renderDetail(p.id)}</td></tr>`:''}`;
+      return `<tr onclick="togglePlayer(${p.id})" tabindex="0" role="button" aria-expanded="${expandedPlayer===p.id}" class="${p.dropped?'dropped':''} ${(T.ended?medals.has(p.id):i<3)?'top3':''}"><td class="standings-rank">${rank}</td><td class="standings-name">${esc(p.name)}${p.dropped?' ✗':''} <span class="who-titles">${leagueTitles(tournamentLid(p))}</span></td><td class="standings-record">${rec}</td><td>${p.mp}</td>${dCell}</tr>${expandedPlayer===p.id?`<tr><td colspan="${cols}" class="detail-cell" style="padding:0;">${renderDetail(p.id)}</td></tr>`:''}`;
     }).join('')}
     </tbody></table></div>
     <div class="text-xs text-dim mt" style="text-align:center;">Tocca un giocatore per match e tiebreaker (Pts → ${isRR?'scontri diretti → ':''}OMW% → GW% → OGW%)</div></div>`;
