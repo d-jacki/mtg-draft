@@ -125,6 +125,35 @@ function archived(date, entrants, final, rounds, extra = {}) {
   check('titoli: 👑 al vincitore dell\'ultimo torneo', app.leagueTitles(b).includes('👑') && !app.leagueTitles(a).includes('👑'));
 }
 
+// ── 7b. Achievement: Bis, Muro, Eterno secondo, Esorcista, Quota 1700, Esploratore ──
+{
+  resetLeague();
+  const [a, b, c, d] = players('A', 'B', 'C', 'D');
+  const has = (id, ach) => !!app.playerStats(id).achievements[ach];
+  const on = (id, ach) => (app.playerStats(id).achievements[ach] || {}).date;
+  // B vince il primo torneo ma perde un game con A; C arriva sempre 2°
+  archived('2026-07-01', [a, b, c, d], [b, c, a, d], [[[a, b, 2, 1], [c, d, 2, 0]], [[b, c, 2, 0], [a, d, 2, 0]], [[b, d, 2, 0], [a, c, 0, 2]]], { set: 'Duskmourn' });
+  // A batte B altre due volte (3–0 negli scontri diretti) e vince: niente Bis, il torneo prima l'ha vinto B
+  archived('2026-07-02', [a, b, c], [a, c, b], [[[a, b, 2, 0]], [[a, b, 2, 1]]], { set: 'Bloomburrow' });
+  check('achievement: niente Muro se hai perso un game', !has(b, 'wall'));
+  check('achievement: niente Esorcista prima di battere chi ti è avanti', !has(b, 'exorcist'));
+  check('achievement: niente Bis se il torneo prima lo ha vinto un altro', !has(a, 'double'));
+  archived('2026-07-03', [a, b, c], [b, c, a], [[[b, a, 2, 1]]], { set: 'duskmourn ' });
+  check('achievement: Esorcista a chi batte chi era avanti negli scontri diretti', on(b, 'exorcist') === '2026-07-03' && !has(a, 'exorcist'));
+  check('achievement: Eterno secondo al terzo 2° posto', on(c, 'second') === '2026-07-03' && !has(a, 'second'));
+  archived('2026-07-04', [a, b, c], [b, c, a], [[[b, a, 2, 0]], [[b, c, 2, 0]], [[b, a, 2, 0]]], { set: 'Foundations' });
+  check('achievement: Bis a chi vince due tornei di fila', on(b, 'double') === '2026-07-04');
+  check('achievement: Muro a chi vince 3 match senza perdere un game', on(b, 'wall') === '2026-07-04' && !has(a, 'wall'));
+  archived('2026-07-05', [a, b], [a, b], [[[a, b, 2, 0]]], { set: 'Aetherdrift' });
+  check('achievement: Esploratore non conta due volte lo stesso set (maiuscole e spazi)', !has(a, 'explorer') && !has(b, 'explorer'));
+  archived('2026-07-06', [a, b], [a, b], [[[a, b, 2, 0]]], { set: 'Innistrad' });
+  check('achievement: Esploratore al quinto set diverso', on(a, 'explorer') === '2026-07-06' && has(b, 'explorer') && !has(c, 'explorer'));
+  // Quota 1700: A batte D finché l'Elo non ci arriva
+  check('achievement: niente Quota 1700 a inizio lega', !has(a, 'elo1700'));
+  archived('2026-07-07', [a, d], [a, d], Array.from({ length: 80 }, () => [[a, d, 2, 0]]));
+  check('achievement: Quota 1700 con Elo arrivato a 1700', has(a, 'elo1700') && !has(d, 'elo1700') && app.playerStats(a).elo >= 1700);
+}
+
 // ── 8. Torneo eliminato: esce dalle statistiche ──
 {
   resetLeague();
