@@ -87,6 +87,8 @@ function renderHistoryTournaments(rows) {
   const groups = new Map();
   for (const r of rows) {
     if (!safeId(r.tid)) continue;
+    // Eliminato per sempre ma con le righe ancora sul server (schema vecchio o rete assente): non si mostra
+    if (L.tournaments[r.tid] && L.tournaments[r.tid].purged) continue;
     if (!groups.has(r.tid)) groups.set(r.tid, { last: r, n: 0 });
     groups.get(r.tid).n++;
   }
@@ -129,17 +131,35 @@ function restoreVersion(d, when) {
 }
 
 // ── Tornei eliminati ──
-function deletedTournaments() { return Object.values(L.tournaments).filter(t => t.deleted).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)); }
+// Quelli eliminati per sempre (purged) non si possono più ripristinare: non compaiono
+function deletedTournaments() { return Object.values(L.tournaments).filter(t => t.deleted && !t.purged).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)); }
 function openDeletedTournaments() {
-  const list = deletedTournaments().filter(t => safeId(t.id));
-  showModalCustom('Tornei eliminati', list.length ? 'Ripristinati tornano in campionato, Elo e statistiche.' : 'Nessun torneo eliminato.',
+  const list = deletedTournaments().filter(t => safeId(t.id)), lock = canAdmin() ? '' : '🔒 ';
+  showModalCustom('Tornei eliminati', list.length ? 'Ripristinati tornano in campionato, Elo e statistiche. "Elimina" li toglie per sempre, anche dalla cronologia live.' : 'Nessun torneo eliminato.',
     `<div class="hist-list">${list.map(t => {
       const win = rankedIds(t)[0], wname = win ? (t.names && t.names[win]) || leagueName(win) : '';
       return `<div class="hist-row"><div class="hist-main"><div class="hist-note">${fmtDate(t.date)} · ${esc(t.set || 'Draft')}</div>
         <div class="text-xs text-dim">${t.entrants.length} giocatori${wname ? ' · vinto da ' + esc(wname) : ''}</div></div>
-        <button class="btn btn-secondary btn-sm" onclick="restoreTournament('${t.id}')">${canAdmin() ? '' : '🔒 '}Ripristina</button></div>`;
+        <div class="hist-btns"><button class="btn btn-secondary btn-sm" onclick="restoreTournament('${t.id}')">${lock}Ripristina</button><button class="btn btn-danger btn-sm" onclick="confirmPurgeTournament('${t.id}')">${lock}Elimina</button></div></div>`;
     }).join('')}</div><button class="btn btn-secondary btn-sm mt" onclick="closeModal()">Chiudi</button>`);
 }
 function restoreTournament(id) {
-  requireMaster(() => { updateTournament(id, { deleted: false }); renderLeague(); openDeletedTournaments(); toast('Torneo ripristinato'); });
+  requireMaster(() => { const t = L.tournaments[id]; if (!t || t.purged) return; updateTournament(id, { deleted: false }); renderLeague(); openDeletedTournaments(); toast('Torneo ripristinato'); });
+}
+function confirmPurgeTournament(id) {
+  requireMaster(() => {
+    const t = L.tournaments[id]; if (!t || !t.deleted || t.purged) return;
+    showModal('Eliminare per sempre?', `${fmtDate(t.date)} · ${t.set || 'Draft'}: non si potrà più ripristinare, e sparisce anche dalla cronologia live. Vale per tutti i telefoni della lega.`, () => purgeTournamentEverywhere(id));
+  });
+}
+async function purgeTournamentEverywhere(id) {
+  purgeTournament(id); renderLeague(); openDeletedTournaments();
+  if (!syncCanWrite()) { toast('Eliminato per sempre da questo telefono'); return; }
+  try {
+    await syncNow(false); // il tombstone ridotto parte subito verso gli altri telefoni
+    await sbRpc('league_purge_tournament', { p_league: syncCfg.league, p_pin: syncCfg.pin, p_admin_pin: syncCfg.adminPin || null, p_tid: id });
+    toast('Torneo eliminato per sempre');
+  } catch (e) {
+    toast(/league_purge_tournament/.test(e.message || '') ? 'Eliminato dalla lega; per la cronologia live rilancia supabase/schema.sql' : (e.message || 'Errore di rete'));
+  }
 }

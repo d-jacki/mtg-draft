@@ -69,6 +69,18 @@ sandbox.fetch = async (url, opts = {}) => {
     if (body.p_pin === server.master) return reply(200, { ok: true });
     server.failures++; return reply(200, { error: 'PIN master errato' });
   }
+  if (u.pathname === '/rest/v1/rpc/league_purge_tournament') {
+    if (server.noPurge) return reply(404, { code: 'PGRST202', message: 'Could not find the function public.league_purge_tournament' });
+    const err = checkPin(body.p_pin);
+    if (err) return reply(200, { error: err });
+    if (server.master && body.p_admin_pin !== server.master) { server.failures++; return reply(200, { error: 'PIN master errato' }); }
+    const doc = server.rows.get(body.p_tid);
+    if (!doc || doc.kind !== 'tournament' || !doc.data.deleted) return reply(200, { error: 'Il torneo va prima eliminato dalla lega' });
+    const before = server.history.length;
+    server.history = server.history.filter(h => h.data.id !== body.p_tid);
+    if (server.live && server.live.data && server.live.data.id === body.p_tid) server.live = { data: null, rev: server.live.rev + 1, updated_at: server.live.updated_at + 1 };
+    return reply(200, { ok: true, history: before - server.history.length });
+  }
   if (u.pathname === '/rest/v1/rpc/league_push') {
     const err = checkPin(body.p_pin);
     // Schema vecchio: PIN sbagliato come eccezione (HTTP 403)

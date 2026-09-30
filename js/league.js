@@ -154,6 +154,12 @@ function archiveTournament() {
 }
 function updateTournament(id, fields) { const t = L.tournaments[id]; if (!t) return null; Object.assign(t, fields); touch(t); saveLeague(); return t; }
 function deleteTournament(id) { return updateTournament(id, { deleted: true }); }
+// Eliminazione definitiva: resta un tombstone minimo, senza risultati né nomi, che il sync porta sugli altri telefoni
+function purgeTournament(id) {
+  const t = L.tournaments[id]; if (!t) return null;
+  L.tournaments[id] = touch({ id, date: t.date, season: t.season, createdAt: t.createdAt, updatedAt: t.updatedAt, deleted: true, purged: true, entrants: [], final: [], rounds: [] });
+  saveLeague(); return L.tournaments[id];
+}
 
 // ── Campionato: 1 punto per ogni giocatore che ti finisce dietro + 1 di presenza + 2 al vincitore ──
 function championshipPoints(rank, entrants, dropped) { return dropped ? 1 : (entrants - 1 - rank) + 1 + (rank === 0 ? 2 : 0); }

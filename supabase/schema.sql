@@ -286,6 +286,44 @@ $$;
 revoke all on function public.league_verify_master(uuid, text) from public;
 grant execute on function public.league_verify_master(uuid, text) to anon, authenticated;
 
+-- Eliminazione definitiva di un torneo già eliminato dalla lega: toglie tutte le sue versioni dalla cronologia live
+-- e, se il live mostra ancora lui, chiude anche quello. La cronologia è il paracadute per gli errori, quindi se la
+-- lega ha un PIN master qui lo verifica anche il server (non solo l'app). Il documento in league_docs resta come
+-- tombstone ridotto (lo scrive l'app con league_push): serve al sync per togliere il torneo dagli altri telefoni.
+create or replace function public.league_purge_tournament(p_league uuid, p_pin text, p_admin_pin text, p_tid text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  err text;
+  n integer;
+begin
+  err := league_check_pin(p_league, p_pin);
+  if err is not null then
+    return jsonb_build_object('error', err);
+  end if;
+  if exists (select 1 from leagues where id = p_league and admin_pin_hash is not null
+             and admin_pin_hash is distinct from crypt(coalesce(p_admin_pin, ''), admin_pin_hash)) then
+    insert into league_pin_failures (league_id) values (p_league);
+    return jsonb_build_object('error', 'PIN master errato');
+  end if;
+  if not exists (select 1 from league_docs where league_id = p_league and id = p_tid and kind = 'tournament'
+                 and data->>'deleted' = 'true') then
+    return jsonb_build_object('error', 'Il torneo va prima eliminato dalla lega');
+  end if;
+
+  delete from league_live_history where league_id = p_league and data->>'id' = p_tid;
+  get diagnostics n = row_count;
+  update league_live set data = null, rev = rev + 1, updated_at = updated_at + 1
+    where league_id = p_league and data->>'id' = p_tid;
+  return jsonb_build_object('ok', true, 'history', n);
+end;
+$$;
+revoke all on function public.league_purge_tournament(uuid, text, text, text) from public;
+grant execute on function public.league_purge_tournament(uuid, text, text, text) to anon, authenticated;
+
 -- Realtime: i telefoni collegati ricevono ogni modifica del torneo live all'istante
 do $$
 begin

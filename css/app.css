@@ -820,5 +820,6 @@ button.pip { width: 36px; height: 36px; font-size: 0.8rem; cursor: pointer; marg
 .hist-main { flex: 1; min-width: 0; }
 .hist-note { font-size: 0.86rem; font-weight: 700; line-height: 1.35; color: var(--text); overflow-wrap: anywhere; }
 .hist-row .btn { flex: none; }
+.hist-btns { display: flex; flex-direction: column; gap: 6px; flex: none; }
 .hist-now { flex: none; font-size: 0.72rem; font-weight: 800; color: var(--accent-dark); background: var(--accent-light); padding: 6px 10px; border-radius: var(--radius-xs); }
 .hist-t strong { display: block; }

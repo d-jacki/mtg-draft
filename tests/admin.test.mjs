@@ -97,6 +97,38 @@ const tid = S.T.id;
   app.closeModal();
 }
 
+// ── 6b. Eliminazione definitiva (tombstone ridotto + cronologia live sul server) ──
+{
+  S.L.tournaments.t_del1.deleted = true; S.L.tournaments.t_del1.updatedAt = 5;
+  S.L.dirty.push('t_del1'); await app.syncNow(false);
+  // Il torneo aveva versioni nella cronologia live ed è ancora quello mostrato in diretta
+  setLive({ data: { ...JSON.parse(JSON.stringify(server.live.data)), id: 't_del1', ended: true }, rev: server.live.rev + 1, updated_at: server.live.updated_at + 1 });
+  const otherHist = server.history.filter(h => h.data.id !== 't_del1').length;
+  app.confirmPurgeTournament('t_del1');
+  check('eliminazione definitiva: senza master chiede il PIN master', el('modalTitle').textContent === 'PIN master');
+  el('masterInp').value = '9999'; await app.saveMasterForm();
+  check('eliminazione definitiva: chiede conferma', el('modalTitle').textContent === 'Eliminare per sempre?');
+  el('modalConfirm').onclick(); await sleep(60);
+  const t = S.L.tournaments.t_del1, row = server.rows.get('t_del1');
+  check('eliminazione definitiva: resta solo un tombstone ridotto', t.purged === true && t.deleted === true && !t.names && t.entrants.length === 0 && t.rounds.length === 0);
+  check('eliminazione definitiva: il tombstone arriva sul server', row && row.data.purged === true && !row.data.names);
+  check('eliminazione definitiva: sparisce dagli eliminati', app.deletedTournaments().every(x => x.id !== 't_del1'));
+  check('eliminazione definitiva: via dalla cronologia live, le altre restano', server.history.every(h => h.data.id !== 't_del1') && server.history.length === otherHist);
+  check('eliminazione definitiva: chiuso anche il live che lo mostrava', server.live.data === null);
+  app.restoreTournament('t_del1');
+  check('eliminazione definitiva: non si ripristina più', S.L.tournaments.t_del1.deleted === true);
+  const valid = app.mergeLeagueDocs([{ kind: 'tournament', data: { ...row.data, updatedAt: row.data.updatedAt + 1 } }], false);
+  check('eliminazione definitiva: il tombstone passa la validazione del sync', valid === 1);
+  // Schema non ancora aggiornato: il torneo si elimina comunque dalla lega e l'app lo dice
+  S.L.tournaments.t_del2 = { ...JSON.parse(JSON.stringify(S.L.tournaments.t_del1)), id: 't_del2', purged: undefined, entrants: ['p_z'], final: ['p_z'], updatedAt: 1 };
+  server.noPurge = true;
+  await app.purgeTournamentEverywhere('t_del2');
+  check('schema vecchio: eliminato comunque dalla lega', S.L.tournaments.t_del2.purged === true);
+  check('schema vecchio: avvisa di rilanciare schema.sql', /schema\.sql/.test(el('toast').textContent), el('toast').textContent);
+  server.noPurge = false;
+  app.exitMaster();
+}
+
 // ── 7. Lega senza PIN master: tutto come prima ──
 {
   server.master = null; await app.syncNow(false);
