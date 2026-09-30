@@ -11,6 +11,8 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 // ── RESTORE ──
 (function(){
   const timerWasRunning = load();
+  // Torneo concluso eliminato dalla lega mentre questo telefono era chiuso (lo sync lo aveva già scaricato)
+  if (currentTournamentDeleted()) { localStorage.removeItem('mtg-t'); location.reload(); return; }
   if (!T.started && T.players.length === 0) return;
   if (T.started) {
     // Il timer riprende da solo: non è una nuova operazione da mandare agli altri telefoni
@@ -23,6 +25,13 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
     if (T.draftOrder.length) renderSeating();
     if (T.players.length >= 4 && T.draftOrder.length) switchTab('draft');
   }
+})();
+
+// Dopo lo svuotamento per un torneo eliminato: si torna dove si era, con il messaggio
+(function(){
+  let d = null;
+  try { d = JSON.parse(sessionStorage.getItem('mtg-after-reset')); sessionStorage.removeItem('mtg-after-reset'); } catch (e) {}
+  if (d && d.tab === 'league') { switchTab('league'); if (d.msg) setTimeout(() => toast(String(d.msg)), 300); }
 })();
 
 syncNow(false);

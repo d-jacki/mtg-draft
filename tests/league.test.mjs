@@ -1,6 +1,6 @@
 // Test della lega: archivio, anagrafica, campionato, Elo, scontri diretti, achievement, import/export,
 // agganci nel torneo e rendering delle viste (smoke test).
-import { app, S, sandbox, check, section, match, reset } from './harness.mjs';
+import { app, S, sandbox, check, section, match, reset, storage } from './harness.mjs';
 
 section('Lega');
 
@@ -132,6 +132,32 @@ function archived(date, entrants, final, rounds, extra = {}) {
   const t = archived('2026-08-01', [a, b], [a, b], [[[a, b, 2, 0]]]);
   app.deleteTournament(t.id);
   check('eliminazione: tombstone e statistiche ricalcolate', S.L.tournaments[t.id].deleted === true && app.playerStats(a).tournaments === 0);
+}
+
+// ── 8b. Torneo eliminato ancora aperto sul telefono: le schede si svuotano ──
+{
+  resetLeague();
+  reset(['Anna', 'Bruno', 'Carla', 'Dario']);
+  S.T.rounds = [{ pairings: [match(1, 2, 2, 0), match(3, 4, 2, 1)] }];
+  S.T.ended = true; S.T.archivedId = null; app.archiveCurrent(); app.save();
+  const tid = S.T.archivedId;
+  check('torneo aperto: finché è in lega le schede restano', !app.currentTournamentDeleted() && storage.has('mtg-t'));
+  // Un altro torneo eliminato non tocca quello aperto
+  const [x, y] = players('X', 'Y');
+  const other = archived('2026-08-02', [x, y], [x, y], [[[x, y, 2, 0]]]);
+  app.deleteTournament(other.id);
+  check('torneo aperto: eliminarne un altro non svuota', app.clearDeletedTournament('x') === false && storage.has('mtg-t'));
+  app.deleteTournament(tid);
+  check('torneo aperto: eliminato dalla lega → schede svuotate', app.clearDeletedTournament('Torneo eliminato') === true && !storage.has('mtg-t'));
+  // Da un altro telefono: arriva il tombstone con il sync
+  app.save(); S.L.tournaments[tid].deleted = false;
+  app.mergeLeagueDocs([{ kind: 'tournament', data: { ...S.L.tournaments[tid], deleted: true, updatedAt: S.L.tournaments[tid].updatedAt + 1 } }], false);
+  app.onLeagueSynced();
+  check('torneo aperto: eliminato da un altro telefono → svuotato al sync', !storage.has('mtg-t'));
+  // Torneo in corso (non concluso) con lo stesso id: mai svuotato
+  app.save(); S.T.ended = false;
+  check('torneo in corso: non si svuota', app.currentTournamentDeleted() === false);
+  S.T.ended = true;
 }
 
 // ── 9. Merge documenti (sync/import): vince il più recente ──

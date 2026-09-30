@@ -619,6 +619,10 @@ function confirmReset(){
   showModal('Nuovo torneo?',T.archivedId?'Il torneo è già salvato nello storico della lega.':T.ended?'Attenzione: questo torneo non è stato salvato nello storico della lega.':T.started?'Il torneo in corso non è concluso: non finirà nello storico della lega.':'I giocatori inseriti verranno tolti. Lo storico della lega resta.',()=>resetTournament(true));
 }
 function resetTournament(clearLive){if(clearLive)liveClearOnReset();localStorage.removeItem('mtg-t');location.reload();}
+// Il torneo concluso ancora aperto qui è stato eliminato dalla lega (da questo telefono o da un altro, via sync):
+// Setup, Tavolo, Round e Classifica si svuotano come con "Nuovo torneo". Dopo il reload si torna sulla Lega.
+function currentTournamentDeleted(){if(!T.started||!T.ended)return false;const t=L.tournaments[T.archivedId||T.id];return !!(t&&t.deleted);}
+function clearDeletedTournament(msg){if(!currentTournamentDeleted())return false;try{sessionStorage.setItem('mtg-after-reset',JSON.stringify({tab:'league',msg}));}catch(e){}resetTournament(true);return true;}
 
 // ── NAV + SWIPE ──
 function switchTab(tab,fromPop){$qsa('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$qsa('.screen').forEach(s=>s.classList.toggle('active',s.id===`screen-${tab}`));if(tab==='round'){if(!T.mode||T.mode==='swiss')viewingRound=T.currentRound||1;renderRound();}if(tab==='standings')renderStandings();if(tab==='draft')renderSeating();if(tab==='league')renderLeague();window.scrollTo(0,0);if(!fromPop&&(!history.state||history.state.tab!==tab))history.pushState({tab},'');}

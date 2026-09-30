@@ -23,7 +23,10 @@ function openProfile(id) { LUI.live = false; LUI.profile = canonicalId(id); if (
 function closeProfile() { LUI.profile = null; renderLeague(); window.scrollTo(0, 0); }
 function setLeagueView(v) { LUI.view = v; LUI.profile = null; LUI.live = false; renderLeague(); }
 function setLeagueSeason(s) { LUI.season = s; renderLeague(); }
-function onLeagueSynced() { if ($id('screen-league').classList.contains('active')) renderLeague(); if (T.started) renderStandings(); }
+function onLeagueSynced() {
+  if (clearDeletedTournament('Il torneo è stato eliminato dalla lega')) return;
+  if ($id('screen-league').classList.contains('active')) renderLeague(); if (T.started) renderStandings();
+}
 
 function renderLeague() {
   const C = $id('leagueContent');
@@ -233,7 +236,7 @@ function toggleArchivedDeck(tid, id, c) {
 function saveTournamentSet(tid) { updateTournament(tid, { set: $id('tdSet').value.trim() }); closeModal(); renderLeague(); toast('Torneo aggiornato'); }
 function confirmDeleteTournament(tid) {
   const t = L.tournaments[tid];
-  requireMaster(() => showModal('Eliminare il torneo?', `${fmtDate(t.date)} · ${t.set || 'Draft'}: esce da campionato, Elo e statistiche. Si può ripristinare da Dati e sync → Avanzate.`, () => { deleteTournament(tid); renderLeague(); toast('Torneo eliminato'); }));
+  requireMaster(() => showModal('Eliminare il torneo?', `${fmtDate(t.date)} · ${t.set || 'Draft'}: esce da campionato, Elo e statistiche. Si può ripristinare da Dati e sync → Avanzate.`, () => { deleteTournament(tid); if (clearDeletedTournament('Torneo eliminato')) return; renderLeague(); toast('Torneo eliminato'); }));
 }
 
 // ── Dati e sync ──

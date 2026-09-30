@@ -154,12 +154,16 @@ function confirmPurgeTournament(id) {
 }
 async function purgeTournamentEverywhere(id) {
   purgeTournament(id); renderLeague(); openDeletedTournaments();
-  if (!syncCanWrite()) { toast('Eliminato per sempre da questo telefono'); return; }
-  try {
-    await syncNow(false); // il tombstone ridotto parte subito verso gli altri telefoni
-    await sbRpc('league_purge_tournament', { p_league: syncCfg.league, p_pin: syncCfg.pin, p_admin_pin: syncCfg.adminPin || null, p_tid: id });
-    toast('Torneo eliminato per sempre');
-  } catch (e) {
-    toast(/league_purge_tournament/.test(e.message || '') ? 'Eliminato dalla lega; per la cronologia live rilancia supabase/schema.sql' : (e.message || 'Errore di rete'));
+  let msg = 'Eliminato per sempre da questo telefono';
+  if (syncCanWrite()) {
+    try {
+      await syncNow(false); // il tombstone ridotto parte subito verso gli altri telefoni
+      await sbRpc('league_purge_tournament', { p_league: syncCfg.league, p_pin: syncCfg.pin, p_admin_pin: syncCfg.adminPin || null, p_tid: id });
+      msg = 'Torneo eliminato per sempre';
+    } catch (e) {
+      msg = /league_purge_tournament/.test(e.message || '') ? 'Eliminato dalla lega; per la cronologia live rilancia supabase/schema.sql' : (e.message || 'Errore di rete');
+    }
   }
+  // Solo dopo le chiamate al server: il reload le interromperebbe
+  if (!clearDeletedTournament(msg)) toast(msg);
 }
