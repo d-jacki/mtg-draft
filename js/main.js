@@ -12,7 +12,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 (function(){
   const timerWasRunning = load();
   // Torneo concluso eliminato dalla lega mentre questo telefono era chiuso (lo sync lo aveva già scaricato)
-  if (currentTournamentDeleted()) { localStorage.removeItem('mtg-t'); location.reload(); return; }
+  if (currentTournamentDeleted()) { localStorage.removeItem('mtg-t'); reloadApp(); return; }
   if (!T.started && T.players.length === 0) return;
   if (T.started) {
     // Il timer riprende da solo: non è una nuova operazione da mandare agli altri telefoni

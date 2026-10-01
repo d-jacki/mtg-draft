@@ -345,3 +345,16 @@ section('Torneo');
   check('movimento normale: coriandoli', added === 1);
   body.appendChild = orig; sandbox.document.getElementById = getEl; delete sandbox.matchMedia;
 }
+
+// ── Avviso del browser all'uscita: solo per le chiusure per sbaglio, non per le ricariche dell'app ──
+// (va per ultimo: dopo reloadApp la pagina "sta ricaricando" e l'avviso resta spento)
+{
+  reset(['A', 'B', 'C', 'D']);
+  const fire = () => { let blocked = false; const e = { preventDefault() { blocked = true; }, returnValue: undefined }; winListeners.beforeunload.forEach(fn => fn(e)); return blocked; };
+  check('uscita: torneo in corso → avviso del browser', fire());
+  S.T.ended = true;
+  check('uscita: torneo concluso → nessun avviso', !fire());
+  S.T.ended = false;
+  app.reloadApp();
+  check('uscita: Nuovo torneo / Aggiorna → nessun doppio avviso', !fire());
+}

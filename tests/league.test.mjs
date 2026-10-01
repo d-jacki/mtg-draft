@@ -154,6 +154,56 @@ function archived(date, entrants, final, rounds, extra = {}) {
   check('achievement: Quota 1700 con Elo arrivato a 1700', has(a, 'elo1700') && !has(d, 'elo1700') && app.playerStats(a).elo >= 1700);
 }
 
+// ── 7c. Achievement: Rinascita, Al cardiopalma, Purista, Domain, Camaleonte ──
+{
+  resetLeague();
+  const [a, b, c, d] = players('A', 'B', 'C', 'D');
+  const has = (id, ach) => !!app.playerStats(id).achievements[ach];
+  const on = (id, ach) => (app.playerStats(id).achievements[ach] || {}).date;
+  // A ultimo; B vince con un monocolore
+  archived('2026-08-01', [a, b, c, d], [b, c, d, a], [[[b, a, 2, 0], [c, d, 2, 0]], [[b, c, 2, 0], [d, a, 2, 0]], [[b, d, 2, 0], [c, a, 2, 0]]], { decks: { [b]: 'U' } });
+  // A vince il torneo dopo, tre match 2–1, con un mazzo a tre colori
+  archived('2026-08-02', [a, b, c, d], [a, b, c, d], [[[a, b, 2, 1], [c, d, 2, 1]], [[a, c, 2, 1], [b, d, 2, 0]], [[a, d, 2, 1], [b, c, 2, 0]]], { decks: { [a]: 'BUW', [b]: 'R' } });
+  check('achievement: Rinascita a chi vince dopo essere arrivato ultimo', on(a, 'phoenix') === '2026-08-02' && !has(b, 'phoenix'));
+  check('achievement: Al cardiopalma con 3 match vinti 2–1 nello stesso torneo', on(a, 'nailbiter') === '2026-08-02' && !has(b, 'nailbiter') && !has(c, 'nailbiter'));
+  check('achievement: Purista a chi vince con un monocolore', on(b, 'purist') === '2026-08-01' && !has(a, 'purist'));
+  check('achievement: Domain a chi vince con 3+ colori', on(a, 'domain') === '2026-08-02' && !has(b, 'domain'));
+  check('achievement: colori di chi non vince non contano', app.playerStats(b).winCombos.R === undefined);
+  // Camaleonte: "UW" e "WU" sono la stessa combinazione
+  archived('2026-08-03', [b, c], [b, c], [[[b, c, 2, 0]]], { decks: { [b]: 'UW' } });
+  archived('2026-08-04', [b, c], [b, c], [[[b, c, 2, 0]]], { decks: { [b]: 'WU' } });
+  check('achievement: niente Camaleonte con due combinazioni', !has(b, 'chameleon') && Object.keys(app.playerStats(b).winCombos).length === 2);
+  archived('2026-08-05', [b, c], [b, c], [[[b, c, 2, 0]]], { decks: { [b]: 'GR' } });
+  check('achievement: Camaleonte alla terza combinazione vincente', on(b, 'chameleon') === '2026-08-05');
+}
+
+// ── 7d. Achievement: Scalatore, Inarrestabile; obiettivi (progresso verso le medaglie) ──
+{
+  resetLeague();
+  const [x, y, z, w] = players('X', 'Y', 'Z', 'W');
+  const has = (id, ach) => !!app.playerStats(id).achievements[ach];
+  const on = (id, ach) => (app.playerStats(id).achievements[ach] || {}).date;
+  // Tre vittorie a pari rating partenza: +16, +15.3, +14.6 = meno di 50
+  archived('2026-09-01', [x, y], [x, y], Array.from({ length: 3 }, () => [[x, y, 2, 0]]));
+  check('achievement: niente Scalatore sotto i 50 punti in un torneo', !has(x, 'climber'));
+  archived('2026-09-02', [z, w], [z, w], Array.from({ length: 4 }, () => [[z, w, 2, 0]]));
+  check('achievement: Scalatore con +50 Elo in un torneo', on(z, 'climber') === '2026-09-02' && !has(w, 'climber'));
+  // Serie di vittorie: continua tra tornei diversi, la interrompe una patta
+  archived('2026-09-03', [z, w], [z, w], Array.from({ length: 6 }, () => [[z, w, 2, 0]]));
+  check('achievement: Inarrestabile al decimo match vinto di fila, anche tra tornei', on(z, 'unstoppable') === '2026-09-03' && app.playerStats(z).winStreak === 10);
+  archived('2026-09-04', [x, y], [x, y], [[[x, y, 1, 1, 1]]]);
+  check('serie di vittorie: la patta la azzera', app.playerStats(x).winStreak === 0 && !has(x, 'unstoppable'));
+  // Obiettivi
+  const s = app.playerStats(z), prog = app.achievementProgress(s), goals = app.nextGoals(s, 3);
+  check('obiettivi: progresso dai conteggi (2 vittorie su 3, 2 tornei su 10)', prog.triple.cur === 2 && prog.triple.goal === 3 && prog.veteran.cur === 2 && prog.veteran.goal === 10);
+  check('obiettivi: Elo contato da 1500, non da zero', Math.abs(prog.elo1700.ratio - (s.elo - 1500) / 200) < 1e-9);
+  check('obiettivi: medaglie già sbloccate escluse', !prog.unstoppable && !prog.first_win && !goals.some(g => g.a.id === 'unstoppable'));
+  check('obiettivi: i tre più vicini, in ordine', goals.length === 3 && goals[0].ratio >= goals[1].ratio && goals[1].ratio >= goals[2].ratio && goals.every(g => g.ratio > 0 && g.ratio < 1));
+  check('obiettivi: niente obiettivi per chi non ha giocato', app.nextGoals(app.emptyStat('p_nuovo'), 3).length === 0);
+  const html = app.renderProfile(z);
+  check('profilo: card "Prossimi obiettivi" con le barre', html.includes('Prossimi obiettivi') && html.includes('role="progressbar"') && html.includes('2/3 vittorie'));
+}
+
 // ── 8. Torneo eliminato: esce dalle statistiche ──
 {
   resetLeague();

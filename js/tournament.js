@@ -77,7 +77,11 @@ function load() {
     return d.tm?.running || false;
   } catch { return false; }
 }
-window.addEventListener('beforeunload', e => { if (T.started && !T.ended) { e.preventDefault(); e.returnValue = ''; } });
+// Chiusura per sbaglio a torneo in corso. Le ricariche volute dall'app (Nuovo torneo, Aggiorna) passano da reloadApp:
+// lo stato è già salvato, l'avviso del browser ("le modifiche potrebbero non essere salvate") sarebbe solo un doppione
+let _appReload = false;
+function reloadApp() { _appReload = true; location.reload(); }
+window.addEventListener('beforeunload', e => { if (!_appReload && T.started && !T.ended) { e.preventDefault(); e.returnValue = ''; } });
 let _modalReturnFocus = null;
 function _focusableInModal(){return [...$id('modal').querySelectorAll('button,select,input,textarea,a[href],[tabindex]:not([tabindex="-1"])')].filter(el=>!el.disabled&&el.offsetParent!==null);}
 function _openModal(){_modalReturnFocus=document.activeElement;$id('modal').classList.add('active');setTimeout(()=>{const f=_focusableInModal();if(f.length)f[0].focus();},50);}
@@ -618,7 +622,7 @@ function confirmReset(){
   }
   showModal('Nuovo torneo?',T.archivedId?'Il torneo è già salvato nello storico della lega.':T.ended?'Attenzione: questo torneo non è stato salvato nello storico della lega.':T.started?'Il torneo in corso non è concluso: non finirà nello storico della lega.':'I giocatori inseriti verranno tolti. Lo storico della lega resta.',()=>resetTournament(true));
 }
-function resetTournament(clearLive){if(clearLive)liveClearOnReset();localStorage.removeItem('mtg-t');location.reload();}
+function resetTournament(clearLive){if(clearLive)liveClearOnReset();localStorage.removeItem('mtg-t');reloadApp();}
 // Il torneo concluso ancora aperto qui è stato eliminato dalla lega (da questo telefono o da un altro, via sync):
 // Setup, Tavolo, Round e Classifica si svuotano come con "Nuovo torneo". Dopo il reload si torna sulla Lega.
 function currentTournamentDeleted(){if(!T.started||!T.ended)return false;const t=L.tournaments[T.archivedId||T.id];return !!(t&&t.deleted);}

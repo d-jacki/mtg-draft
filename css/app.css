@@ -740,6 +740,15 @@ button.pip { width: 36px; height: 36px; font-size: 0.8rem; cursor: pointer; marg
 .ach-emoji { font-size: 1.6rem; line-height: 1.2; }
 .ach-name { font-size: 0.72rem; font-weight: 800; margin-top: 4px; color: var(--accent-dark); overflow-wrap: anywhere; hyphens: auto; }
 .ach-desc { font-size: 0.62rem; color: var(--text-dim); margin-top: 2px; line-height: 1.3; overflow-wrap: anywhere; hyphens: auto; }
+.goal-row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; }
+.goal-row:not(:last-child) { border-bottom: 1px solid var(--border); }
+.goal-emoji { font-size: 1.4rem; line-height: 1.2; flex-shrink: 0; }
+.goal-main { flex: 1; min-width: 0; }
+.goal-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 0.85rem; }
+.goal-val { font-size: 0.75rem; font-weight: 700; color: var(--text-mid); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.goal-bar { display: block; height: 8px; margin: 5px 0 4px; background: var(--bg-input); border-radius: 4px; overflow: hidden; }
+.goal-bar i { display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
+.ach .goal-bar { height: 4px; margin: 6px 4px 0; background: var(--border); }
 
 .manage > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; min-height: 32px; align-items: center; }
 .manage > summary::-webkit-details-marker { display: none; }

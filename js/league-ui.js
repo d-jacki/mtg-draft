@@ -163,6 +163,7 @@ function renderProfile(id) {
     h += renderColorStats(s);
     h += renderRivals(id, s);
   }
+  h += renderGoals(s);
   h += renderAchievements(s);
   if (s.tournaments) h += `<div class="card"><div class="card-title">Tornei</div>${s.finishes.slice().reverse().map(f => { const t = L.tournaments[f.tid], e = s.eloHistory.find(x => x.tid === f.tid); return `<button class="history-item" onclick="openTournament('${f.tid}')"><div class="history-date">${fmtDate(f.date)}</div><div class="history-main"><div class="history-set">${f.dropped ? 'Ritirato' : `${f.pos}° su ${f.of}`} ${pips(t && t.decks && Object.entries(t.decks).find(([k]) => canonicalId(k) === id)?.[1])}</div><div class="text-xs text-dim">${t && t.set ? esc(t.set) + ' · ' : ''}Elo ${e ? Math.round(e.elo) : '—'}</div></div><span class="history-chev" aria-hidden="true">›</span></button>`; }).join('')}</div>`;
   h += renderProfileManage(id, s);
@@ -183,11 +184,19 @@ function renderRivals(id, s) {
   return `<div class="card"><div class="card-title">Rivalità</div><div class="rival-grid">${big('Nemesi', s.nemesis, '💀')}${big('Vittima preferita', s.victim, '🎯')}</div>
     ${opps.map(o => `<div class="kv" onclick="openProfile('${o.id}')" style="cursor:pointer;"><span>${whoHtml(o.id)}</span><b>${o.w}–${o.l}${o.d ? '–' + o.d : ''}</b></div>`).join('')}</div>`;
 }
+function goalBar(g) { const v = Math.round(g.ratio * 100); return `<span class="goal-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${v}" aria-label="${g.a.name}: ${g.cur} su ${g.goal} ${g.unit}"><i style="width:${v}%"></i></span>`; }
+// Le medaglie più vicine, con quanto manca
+function renderGoals(s) {
+  const goals = nextGoals(s, 3);
+  if (!goals.length) return '';
+  return `<div class="card"><div class="card-title">Prossimi obiettivi</div>${goals.map(g => `<div class="goal-row"><span class="goal-emoji" aria-hidden="true">${g.a.emoji}</span><div class="goal-main">
+    <div class="goal-head"><b>${g.a.name}</b><span class="goal-val">${g.cur}/${g.goal} ${g.unit}</span></div>${goalBar(g)}<div class="text-xs text-dim">${g.a.desc}</div></div></div>`).join('')}</div>`;
+}
 function renderAchievements(s) {
-  const got = ACHIEVEMENTS.filter(a => s.achievements[a.id]).length;
+  const got = ACHIEVEMENTS.filter(a => s.achievements[a.id]).length, prog = achievementProgress(s);
   return `<div class="card"><div class="card-title">Achievement <span class="text-xs text-dim" style="font-family:inherit;font-weight:600;">${got}/${ACHIEVEMENTS.length}</span></div><div class="ach-grid">${ACHIEVEMENTS.map(a => {
-    const e = s.achievements[a.id];
-    return `<div class="ach${e ? '' : ' locked'}"><div class="ach-emoji" aria-hidden="true">${a.emoji}</div><div class="ach-name">${a.name}</div><div class="ach-desc">${e ? fmtDate(e.date) : a.desc}</div></div>`;
+    const e = s.achievements[a.id], g = !e && prog[a.id] && prog[a.id].ratio > 0 ? { a, ...prog[a.id] } : null;
+    return `<div class="ach${e ? '' : ' locked'}"><div class="ach-emoji" aria-hidden="true">${a.emoji}</div><div class="ach-name">${a.name}</div><div class="ach-desc">${e ? fmtDate(e.date) : a.desc}</div>${g ? goalBar(g) : ''}</div>`;
   }).join('')}</div></div>`;
 }
 function renderProfileManage(id, s) {
