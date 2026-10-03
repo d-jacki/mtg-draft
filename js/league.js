@@ -166,19 +166,23 @@ function championshipPoints(rank, entrants, dropped) { return dropped ? 1 : (ent
 function eloExpected(ra, rb) { return 1 / (1 + Math.pow(10, (rb - ra) / 400)); }
 
 // ── Achievement: calcolati dall'archivio, quindi retroattivi e sempre coerenti con le correzioni ──
-// tiers: medaglia a livelli (n = traguardo, desc con {n}); fun: sezione "Per ridere"; secret: "???" finché non la prendi
+// tiers: medaglia a livelli (n = traguardo, desc con {n}); fun: per ridere, fuori dai prossimi obiettivi; secret: "???" finché non la prendi
 const ACHIEVEMENTS = [
   { id: 'first_win', emoji: '🏆', name: 'Prima vittoria', desc: 'Vinci un torneo' },
   { id: 'sweep', emoji: '🧹', name: 'Cappotto', desc: 'Vinci un torneo Swiss con tutti i match 2–0 (almeno 3)' },
   { id: 'comeback', emoji: '🔄', name: 'Rimonta', desc: 'Vinci un torneo dopo aver perso il primo round' },
   { id: 'phoenix', emoji: '🌅', name: 'Rinascita', desc: 'Vinci un torneo dopo essere arrivato ultimo in quello prima' },
+  { id: 'fall', emoji: '🪂', name: 'Dalle stelle alle stalle', desc: 'Vinci un torneo e arriva ultimo in quello dopo', fun: true, secret: true },
   { id: 'davide', emoji: '🏹', name: 'Davide', desc: 'Vinci un torneo partendo con l\'Elo più basso del tavolo (almeno 4 giocatori)' },
   { id: 'triple', emoji: '🎩', name: 'Tripletta', desc: 'Vinci {n} tornei', tiers: [{ n: 3, name: 'Tripletta' }, { n: 5, name: 'Manita' }, { n: 10, name: 'Leggenda' }] },
   { id: 'double', emoji: '🔁', name: 'Bis', desc: 'Vinci due tornei di fila' },
   { id: 'streak3', emoji: '🔥', name: 'Filotto', desc: 'Sul podio in 3 tornei di fila' },
   { id: 'nailbiter', emoji: '💓', name: 'Al cardiopalma', desc: 'Vinci 3 match 2–1 nello stesso torneo' },
+  { id: 'heartbreak', emoji: '💔', name: 'Crepacuore', desc: 'Perdi 3 match 1–2 nello stesso torneo', fun: true, secret: true },
   { id: 'unstoppable', emoji: '🚂', name: 'Inarrestabile', desc: 'Vinci 10 match di fila, anche in tornei diversi' },
   { id: 'second', emoji: '🥈', name: 'Eterno secondo', desc: 'Arriva 2° in 3 tornei' },
+  { id: 'fourth', emoji: '🪵', name: 'Medaglia di legno', desc: 'Arriva 4° in 3 tornei, appena giù dal podio (almeno 5 giocatori)', fun: true },
+  { id: 'wooden', emoji: '🥄', name: 'Cucchiaio di legno', desc: 'Arriva ultimo in un torneo', fun: true },
   { id: 'giant', emoji: '💥', name: 'Colpaccio', desc: 'Vinci {n} match da sfavorito (pronostico Elo sotto il 30%)', tiers: [{ n: 1, name: 'Colpaccio' }, { n: 3, name: 'Ammazzagiganti' }, { n: 5, name: 'Cacciatore di draghi' }] },
   { id: 'regicide', emoji: '🗡️', name: 'Regicida', desc: 'Batti il campione in carica (chi ha vinto il torneo prima)' },
   { id: 'exorcist', emoji: '😈', name: 'Esorcista', desc: 'Batti chi ti era in vantaggio negli scontri diretti (almeno 3 match)' },
@@ -188,20 +192,15 @@ const ACHIEVEMENTS = [
   { id: 'purist', emoji: '💎', name: 'Purista', desc: 'Vinci un torneo con un mazzo monocolore' },
   { id: 'domain', emoji: '🌀', name: 'Domain', desc: 'Vinci un torneo con un mazzo di 3 o più colori' },
   { id: 'rainbow', emoji: '🌈', name: 'Pentacromatico', desc: 'Vinci almeno un match con un mazzo a 5 colori' },
+  { id: 'greed', emoji: '🤡', name: 'Avidità', desc: 'Mazzo a 5 colori senza vincere neanche un match', fun: true, secret: true },
   { id: 'chameleon', emoji: '🦎', name: 'Camaleonte', desc: 'Vinci tornei con 3 combinazioni di colori diverse' },
   { id: 'palette', emoji: '🎨', name: 'Tavolozza', desc: 'Vinci almeno un match con ognuno dei 5 colori' },
   { id: 'monogamy', emoji: '🐑', name: 'Monogamo', desc: 'Gioca gli stessi colori in 3 tornei di fila' },
   { id: 'explorer', emoji: '📚', name: 'Esploratore', desc: 'Vinci tornei in 3 set o cube diversi' },
   { id: 'veteran', emoji: '🎖️', name: 'Veterano', desc: 'Gioca {n} tornei', tiers: [{ n: 10, name: 'Veterano' }, { n: 25, name: 'Habitué' }, { n: 50, name: 'Istituzione' }] },
-  // Per ridere
-  { id: 'wooden', emoji: '🥄', name: 'Cucchiaio di legno', desc: 'Arriva ultimo in un torneo', fun: true },
-  { id: 'fourth', emoji: '🪵', name: 'Medaglia di legno', desc: 'Arriva 4° in 3 tornei, appena giù dal podio (almeno 5 giocatori)', fun: true },
+  { id: 'tourist', emoji: '🧳', name: 'Turista', desc: 'Chiudi un torneo senza vincere un match (almeno 3 giocati)', fun: true, secret: true },
   { id: 'bye_king', emoji: '🎁', name: 'Re del bye', desc: 'Ricevi 3 bye', fun: true },
   { id: 'diplomat', emoji: '🤝', name: 'Diplomatico', desc: '5 patte intenzionali (ID)', fun: true },
-  { id: 'tourist', emoji: '🧳', name: 'Turista', desc: 'Chiudi un torneo senza vincere un match (almeno 3 giocati)', fun: true, secret: true },
-  { id: 'greed', emoji: '🤡', name: 'Avidità', desc: 'Mazzo a 5 colori senza vincere neanche un match', fun: true, secret: true },
-  { id: 'fall', emoji: '🪂', name: 'Dalle stelle alle stalle', desc: 'Vinci un torneo e arriva ultimo in quello dopo', fun: true, secret: true },
-  { id: 'heartbreak', emoji: '💔', name: 'Crepacuore', desc: 'Perdi 3 match 1–2 nello stesso torneo', fun: true, secret: true },
   { id: 'snail', emoji: '🐌', name: 'Lumaca', desc: 'Finisci un match in pareggio a tempo scaduto (non un ID)', fun: true, secret: true },
   { id: 'ludo', emoji: '🎰', name: 'Ludopatico', desc: 'Si sa chi è', fun: true, secret: true },
 ];

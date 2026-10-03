@@ -252,7 +252,7 @@ function archived(date, entrants, final, rounds, extra = {}) {
   check('achievement: Medaglia di legno al terzo 4° posto con almeno 5 giocatori', on(d, 'fourth') === '2026-11-04' && app.playerStats(d).fourths === 3);
   check('obiettivi: niente medaglie per ridere tra i prossimi obiettivi', app.nextGoals(app.playerStats(e), 5).every(g => !g.a.fun));
   const hb = app.renderProfile(b), hd = app.renderProfile(d);
-  check('profilo: medaglie segrete nascoste finché non le prendi', hb.includes('Per ridere') && hb.includes('???') && !hb.includes('Avidità') && hd.includes('Avidità'));
+  check('profilo: medaglie segrete nascoste finché non le prendi', !hb.includes('Per ridere') && hb.includes('???') && !hb.includes('Avidità') && hd.includes('Avidità'));
 }
 
 // ── 8. Torneo eliminato: esce dalle statistiche ──

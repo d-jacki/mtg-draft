@@ -201,9 +201,8 @@ function achTile(s, a, prog) {
   return `<div class="ach${e ? '' : ' locked'}" title="${tier.desc}"><div class="ach-emoji" aria-hidden="true">${a.emoji}</div><div class="ach-name">${tier.name}</div>${stars}<div class="ach-desc">${e ? fmtDate(e.date) : tier.desc}</div>${g ? goalBar(g) : ''}</div>`;
 }
 function renderAchievements(s) {
-  const prog = achievementProgress(s), main = ACHIEVEMENTS.filter(a => !a.fun), fun = ACHIEVEMENTS.filter(a => a.fun);
-  const card = (title, list) => `<div class="card"><div class="card-title">${title} <span class="text-xs text-dim" style="font-family:inherit;font-weight:600;">${list.filter(a => s.achievements[a.id]).length}/${list.length}</span></div><div class="ach-grid">${list.map(a => achTile(s, a, prog)).join('')}</div></div>`;
-  return card('Achievement', main) + card('Per ridere', fun);
+  const prog = achievementProgress(s), got = ACHIEVEMENTS.filter(a => s.achievements[a.id]).length;
+  return `<div class="card"><div class="card-title">Achievement <span class="text-xs text-dim" style="font-family:inherit;font-weight:600;">${got}/${ACHIEVEMENTS.length}</span></div><div class="ach-grid">${ACHIEVEMENTS.map(a => achTile(s, a, prog)).join('')}</div></div>`;
 }
 function renderProfileManage(id, s) {
   const p = resolvePlayer(id), others = leaguePlayers().filter(o => o.id !== id).sort((a, b) => a.name.localeCompare(b.name, 'it'));
