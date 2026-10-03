@@ -115,17 +115,17 @@ function archived(date, entrants, final, rounds, extra = {}) {
   const [a, b, c, d, f] = players('A', 'B', 'C', 'D', 'Ferro il Ludopatico');
   // A perde il R1 ma vince il torneo (rimonta); D ultimo (cucchiaio)
   archived('2026-07-01', [a, b, c, d], [a, b, c, d], [[[b, a, 2, 1], [c, d, 2, 0]], [[a, c, 2, 0], [b, d, 2, 0]], [[a, d, 2, 0], [b, c, 1, 2]]]);
-  // B vince 3-0 tutto 2-0 (cappotto + imbattuto)
+  // B vince 3-0 tutto 2-0 (cappotto)
   archived('2026-07-08', [a, b, c, f], [b, a, c, f], [[[b, a, 2, 0], [c, f, 2, 1]], [[b, c, 2, 0], [a, f, 2, 0]], [[b, f, 2, 0], [a, c, 2, 1]]]);
   const has = (id, ach) => !!app.playerStats(id).achievements[ach];
-  check('achievement: rimonta per chi vince dopo aver perso il R1', has(a, 'comeback') && has(a, 'first_win') && !has(a, 'undefeated'));
-  check('achievement: imbattuto e cappotto', has(b, 'undefeated') && has(b, 'sweep'));
+  check('achievement: rimonta per chi vince dopo aver perso il R1', has(a, 'comeback') && has(a, 'first_win') && !has(a, 'sweep'));
+  check('achievement: cappotto', has(b, 'sweep'));
   check('achievement: cucchiaio di legno all\'ultimo', has(d, 'wooden') && !has(c, 'wooden'));
   check('achievement: Ludopatico', has(f, 'ludo'));
   check('titoli: 👑 al vincitore dell\'ultimo torneo', app.leagueTitles(b).includes('👑') && !app.leagueTitles(a).includes('👑'));
 }
 
-// ── 7b. Achievement: Bis, Muro, Eterno secondo, Esorcista, Quota 1700, Esploratore ──
+// ── 7b. Achievement: Bis, Eterno secondo, Esorcista, Quota 1700, Esploratore ──
 {
   resetLeague();
   const [a, b, c, d] = players('A', 'B', 'C', 'D');
@@ -135,7 +135,6 @@ function archived(date, entrants, final, rounds, extra = {}) {
   archived('2026-07-01', [a, b, c, d], [b, c, a, d], [[[a, b, 2, 1], [c, d, 2, 0]], [[b, c, 2, 0], [a, d, 2, 0]], [[b, d, 2, 0], [a, c, 0, 2]]], { set: 'Duskmourn' });
   // A batte B altre due volte (3–0 negli scontri diretti) e vince: niente Bis, il torneo prima l'ha vinto B
   archived('2026-07-02', [a, b, c], [a, c, b], [[[a, b, 2, 0]], [[a, b, 2, 1]]], { set: 'Bloomburrow' });
-  check('achievement: niente Muro se hai perso un game', !has(b, 'wall'));
   check('achievement: niente Esorcista prima di battere chi ti è avanti', !has(b, 'exorcist'));
   check('achievement: niente Bis se il torneo prima lo ha vinto un altro', !has(a, 'double'));
   archived('2026-07-03', [a, b, c], [b, c, a], [[[b, a, 2, 1]]], { set: 'duskmourn ' });
@@ -143,11 +142,10 @@ function archived(date, entrants, final, rounds, extra = {}) {
   check('achievement: Eterno secondo al terzo 2° posto', on(c, 'second') === '2026-07-03' && !has(a, 'second'));
   archived('2026-07-04', [a, b, c], [b, c, a], [[[b, a, 2, 0]], [[b, c, 2, 0]], [[b, a, 2, 0]]], { set: 'Foundations' });
   check('achievement: Bis a chi vince due tornei di fila', on(b, 'double') === '2026-07-04');
-  check('achievement: Muro a chi vince 3 match senza perdere un game', on(b, 'wall') === '2026-07-04' && !has(a, 'wall'));
   archived('2026-07-05', [a, b], [a, b], [[[a, b, 2, 0]]], { set: 'Aetherdrift' });
-  check('achievement: Esploratore non conta due volte lo stesso set (maiuscole e spazi)', !has(a, 'explorer') && !has(b, 'explorer'));
+  check('achievement: Esploratore non conta due volte lo stesso set vinto (maiuscole e spazi)', !has(a, 'explorer') && !has(b, 'explorer') && Object.keys(app.playerStats(b).winSets).length === 2);
   archived('2026-07-06', [a, b], [a, b], [[[a, b, 2, 0]]], { set: 'Innistrad' });
-  check('achievement: Esploratore al quinto set diverso', on(a, 'explorer') === '2026-07-06' && has(b, 'explorer') && !has(c, 'explorer'));
+  check('achievement: Esploratore al terzo set vinto, i set giocati e persi non contano', on(a, 'explorer') === '2026-07-06' && !has(b, 'explorer') && !has(c, 'explorer'));
   // Quota 1700: A batte D finché l'Elo non ci arriva
   check('achievement: niente Quota 1700 a inizio lega', !has(a, 'elo1700'));
   archived('2026-07-07', [a, d], [a, d], Array.from({ length: 80 }, () => [[a, d, 2, 0]]));
@@ -202,6 +200,59 @@ function archived(date, entrants, final, rounds, extra = {}) {
   check('obiettivi: niente obiettivi per chi non ha giocato', app.nextGoals(app.emptyStat('p_nuovo'), 3).length === 0);
   const html = app.renderProfile(z);
   check('profilo: card "Prossimi obiettivi" con le barre', html.includes('Prossimi obiettivi') && html.includes('role="progressbar"') && html.includes('2/3 vittorie'));
+}
+
+// ── 7e. Achievement: Regicida, Vendetta, Colpaccio a livelli, Davide ──
+{
+  resetLeague();
+  const [a, b, c, d] = players('A', 'B', 'C', 'D');
+  const has = (id, ach) => !!app.playerStats(id).achievements[ach];
+  const on = (id, ach) => (app.playerStats(id).achievements[ach] || {}).date;
+  // A batte D tante volte: D finisce molto sotto in Elo e ha perso 40 volte di fila contro A
+  archived('2026-10-01', [a, d], [a, d], Array.from({ length: 40 }, () => [[a, d, 2, 0]]));
+  check('achievement: niente Davide a pari Elo (primo torneo)', !has(a, 'davide'));
+  // D, il più basso in Elo, batte tre volte il campione in carica e vince il torneo
+  archived('2026-10-02', [a, b, c, d], [d, b, a, c], [[[d, a, 2, 0], [b, c, 2, 0]], [[d, a, 2, 0], [c, b, 2, 0]], [[d, a, 2, 0], [b, c, 2, 0]]]);
+  check('achievement: Regicida a chi batte il campione in carica', on(d, 'regicide') === '2026-10-02' && !has(b, 'regicide') && !has(c, 'regicide'));
+  check('achievement: Vendetta a chi batte chi lo aveva battuto 3 volte di fila', on(d, 'revenge') === '2026-10-02' && !has(a, 'revenge'));
+  check('achievement: Davide a chi vince partendo con l\'Elo più basso', on(d, 'davide') === '2026-10-02');
+  const g = app.playerStats(d).achievements.giant, prog = app.achievementProgress(app.playerStats(d));
+  check('achievement a livelli: 3 colpacci = Ammazzagiganti (livello 2)', g && g.level === 2 && app.playerStats(d).upsets === 3 && !has(b, 'giant'));
+  check('obiettivi a livelli: il prossimo è Cacciatore di draghi, contato dal livello raggiunto', prog.giant.goal === 5 && prog.giant.name === 'Cacciatore di draghi' && prog.giant.ratio === 0);
+  const html = app.renderProfile(d);
+  check('profilo: medaglia a livelli con nome del livello e stelle', html.includes('Ammazzagiganti') && html.includes('★★☆'));
+  // Il campione ora è D: B lo batte
+  archived('2026-10-03', [b, d], [b, d], [[[b, d, 2, 1]]]);
+  check('achievement: Regicida anche contro il campione nuovo', on(b, 'regicide') === '2026-10-03');
+}
+
+// ── 7f. Achievement: colori (Pentacromatico, Tavolozza, Monogamo) e medaglie per ridere ──
+{
+  resetLeague();
+  const [a, b, c, d, e] = players('A', 'B', 'C', 'D', 'E');
+  const has = (id, ach) => !!app.playerStats(id).achievements[ach];
+  const on = (id, ach) => (app.playerStats(id).achievements[ach] || {}).date;
+  // A vince tutto a 5 colori; D a 5 colori perde tre match, tutti 1–2; B e C pareggiano a tempo
+  archived('2026-11-01', [a, b, c, d], [a, b, c, d], [[[a, b, 2, 0], [c, d, 2, 1]], [[a, c, 2, 0], [b, d, 2, 1]], [[a, d, 2, 1], [b, c, 1, 1, 1]]],
+    { decks: { [a]: 'WUBRG', [b]: 'UB', [d]: 'GWURB' } });
+  check('achievement: Pentacromatico a chi vince almeno un match a 5 colori nello stesso draft', on(a, 'rainbow') === '2026-11-01' && !has(d, 'rainbow') && !has(b, 'rainbow'));
+  check('achievement: Avidità a chi perde tutto a 5 colori', on(d, 'greed') === '2026-11-01' && !has(a, 'greed'));
+  check('achievement: Tavolozza con un match vinto per ogni colore', on(a, 'palette') === '2026-11-01' && !has(b, 'palette'));
+  check('achievement: Turista senza match vinti', on(d, 'tourist') === '2026-11-01' && !has(c, 'tourist'));
+  check('achievement: Crepacuore con 3 match persi 1–2', on(d, 'heartbreak') === '2026-11-01' && !has(c, 'heartbreak'));
+  check('achievement: Lumaca a chi pareggia a tempo', on(b, 'snail') === '2026-11-01' && on(c, 'snail') === '2026-11-01' && !has(a, 'snail'));
+  // A vince il primo e arriva ultimo nel secondo; D 4° su 5
+  archived('2026-11-02', [a, b, c, d, e], [b, c, e, d, a], [[[b, a, 2, 0], [c, d, 2, 0], [e, null]]], { decks: { [a]: 'BRGUW' } });
+  check('achievement: Dalle stelle alle stalle', on(a, 'fall') === '2026-11-02' && has(a, 'wooden') && !has(b, 'fall'));
+  check('achievement: niente Monogamo con due tornei', !has(a, 'monogamy') && app.playerStats(a).comboStreak === 2);
+  archived('2026-11-03', [a, b, c, d, e], [a, b, c, d, e], [[[a, b, 2, 0], [c, d, 2, 0], [e, null]]], { decks: { [a]: 'WUBRG' } });
+  check('achievement: Monogamo con gli stessi colori per 3 tornei di fila', on(a, 'monogamy') === '2026-11-03');
+  // Il 4° posto su 4 del primo torneo non conta per la Medaglia di legno
+  archived('2026-11-04', [a, b, c, d, e], [a, b, c, d, e], [[[a, b, 2, 0], [c, d, 2, 0], [e, null]]]);
+  check('achievement: Medaglia di legno al terzo 4° posto con almeno 5 giocatori', on(d, 'fourth') === '2026-11-04' && app.playerStats(d).fourths === 3);
+  check('obiettivi: niente medaglie per ridere tra i prossimi obiettivi', app.nextGoals(app.playerStats(e), 5).every(g => !g.a.fun));
+  const hb = app.renderProfile(b), hd = app.renderProfile(d);
+  check('profilo: medaglie segrete nascoste finché non le prendi', hb.includes('Per ridere') && hb.includes('???') && !hb.includes('Avidità') && hd.includes('Avidità'));
 }
 
 // ── 8. Torneo eliminato: esce dalle statistiche ──

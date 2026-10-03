@@ -24,8 +24,9 @@ PWA per gestire tornei di Magic: The Gathering tra amici — draft con pairing *
 - **Rating Elo** su tutti i match (partenza 1500, K=32; bye e forfeit esclusi), con andamento nel tempo
 - **Profilo**: tornei, vittorie, podi, record match/game, forma recente, grafico Elo, statistiche per colore, nemesi e vittima preferita
 - **Scontri diretti**: matrice tutti-contro-tutti
-- **Achievement** (26, retroattivi) e titoli: 👑 campione in carica, 🩷 leader del campionato
-- **Prossimi obiettivi** nel profilo: le tre medaglie più vicine con quanto manca (es. Veterano 7/10 tornei, Quota 1700 da 1500 in su)
+- **Achievement** (25, retroattivi): alcune a livelli (Tripletta → Manita → Leggenda, Colpaccio → Ammazzagiganti → Cacciatore di draghi, Veterano → Habitué → Istituzione), più 10 **per ridere** di cui 6 segrete, che restano "???" finché non le prendi
+- Titoli: 👑 campione in carica, 🩷 leader del campionato
+- **Prossimi obiettivi** nel profilo: le tre medaglie più vicine con quanto manca (es. Veterano 7/10 tornei, Quota 1700 da 1500 in su; per le medaglie a livelli, il livello successivo)
 - **💥 Colpaccio** quando vince lo sfavorito secondo l'Elo (pronostico sotto il 30%)
 - **Backup**: esporta/importa l'archivio in JSON
 - **Sync Supabase**: tutti vedete la lega dal vostro telefono — vedi sotto

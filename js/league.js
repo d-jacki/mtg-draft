@@ -166,34 +166,52 @@ function championshipPoints(rank, entrants, dropped) { return dropped ? 1 : (ent
 function eloExpected(ra, rb) { return 1 / (1 + Math.pow(10, (rb - ra) / 400)); }
 
 // ── Achievement: calcolati dall'archivio, quindi retroattivi e sempre coerenti con le correzioni ──
+// tiers: medaglia a livelli (n = traguardo, desc con {n}); fun: sezione "Per ridere"; secret: "???" finché non la prendi
 const ACHIEVEMENTS = [
   { id: 'first_win', emoji: '🏆', name: 'Prima vittoria', desc: 'Vinci un torneo' },
-  { id: 'undefeated', emoji: '👑', name: 'Imbattuto', desc: 'Vinci un torneo senza perdere un match' },
   { id: 'sweep', emoji: '🧹', name: 'Cappotto', desc: 'Vinci un torneo Swiss con tutti i match 2–0 (almeno 3)' },
   { id: 'comeback', emoji: '🔄', name: 'Rimonta', desc: 'Vinci un torneo dopo aver perso il primo round' },
   { id: 'phoenix', emoji: '🌅', name: 'Rinascita', desc: 'Vinci un torneo dopo essere arrivato ultimo in quello prima' },
-  { id: 'streak3', emoji: '🔥', name: 'Filotto', desc: 'Sul podio in 3 tornei di fila' },
-  { id: 'triple', emoji: '🎩', name: 'Tripletta', desc: 'Vinci 3 tornei' },
+  { id: 'davide', emoji: '🏹', name: 'Davide', desc: 'Vinci un torneo partendo con l\'Elo più basso del tavolo (almeno 4 giocatori)' },
+  { id: 'triple', emoji: '🎩', name: 'Tripletta', desc: 'Vinci {n} tornei', tiers: [{ n: 3, name: 'Tripletta' }, { n: 5, name: 'Manita' }, { n: 10, name: 'Leggenda' }] },
   { id: 'double', emoji: '🔁', name: 'Bis', desc: 'Vinci due tornei di fila' },
-  { id: 'wall', emoji: '🧱', name: 'Muro', desc: 'Vinci almeno 3 match in un torneo senza perdere un game' },
+  { id: 'streak3', emoji: '🔥', name: 'Filotto', desc: 'Sul podio in 3 tornei di fila' },
   { id: 'nailbiter', emoji: '💓', name: 'Al cardiopalma', desc: 'Vinci 3 match 2–1 nello stesso torneo' },
   { id: 'unstoppable', emoji: '🚂', name: 'Inarrestabile', desc: 'Vinci 10 match di fila, anche in tornei diversi' },
   { id: 'second', emoji: '🥈', name: 'Eterno secondo', desc: 'Arriva 2° in 3 tornei' },
-  { id: 'giant', emoji: '⚔️', name: 'Ammazzagiganti', desc: 'Batti chi ha almeno 100 punti Elo più di te' },
+  { id: 'giant', emoji: '💥', name: 'Colpaccio', desc: 'Vinci {n} match da sfavorito (pronostico Elo sotto il 30%)', tiers: [{ n: 1, name: 'Colpaccio' }, { n: 3, name: 'Ammazzagiganti' }, { n: 5, name: 'Cacciatore di draghi' }] },
+  { id: 'regicide', emoji: '🗡️', name: 'Regicida', desc: 'Batti il campione in carica (chi ha vinto il torneo prima)' },
   { id: 'exorcist', emoji: '😈', name: 'Esorcista', desc: 'Batti chi ti era in vantaggio negli scontri diretti (almeno 3 match)' },
+  { id: 'revenge', emoji: '🔪', name: 'Vendetta', desc: 'Batti chi ti aveva battuto 3 volte di fila' },
   { id: 'climber', emoji: '🧗', name: 'Scalatore', desc: 'Guadagna almeno 50 punti Elo in un solo torneo' },
   { id: 'elo1700', emoji: '📈', name: 'Quota 1700', desc: 'Raggiungi 1700 punti Elo' },
   { id: 'purist', emoji: '💎', name: 'Purista', desc: 'Vinci un torneo con un mazzo monocolore' },
   { id: 'domain', emoji: '🌀', name: 'Domain', desc: 'Vinci un torneo con un mazzo di 3 o più colori' },
+  { id: 'rainbow', emoji: '🌈', name: 'Pentacromatico', desc: 'Vinci almeno un match con un mazzo a 5 colori' },
   { id: 'chameleon', emoji: '🦎', name: 'Camaleonte', desc: 'Vinci tornei con 3 combinazioni di colori diverse' },
-  { id: 'rainbow', emoji: '🌈', name: 'Pentacromatico', desc: 'Gioca tutti e 5 i colori' },
-  { id: 'veteran', emoji: '🎖️', name: 'Veterano', desc: 'Gioca 10 tornei' },
-  { id: 'explorer', emoji: '📚', name: 'Esploratore', desc: 'Gioca 5 set o cube diversi' },
-  { id: 'diplomat', emoji: '🤝', name: 'Diplomatico', desc: '5 patte intenzionali (ID)' },
-  { id: 'bye_king', emoji: '🎁', name: 'Re del bye', desc: 'Ricevi 3 bye' },
-  { id: 'wooden', emoji: '🥄', name: 'Cucchiaio di legno', desc: 'Arriva ultimo in un torneo' },
-  { id: 'ludo', emoji: '🎰', name: 'Ludopatico', desc: 'Si sa chi è' },
+  { id: 'palette', emoji: '🎨', name: 'Tavolozza', desc: 'Vinci almeno un match con ognuno dei 5 colori' },
+  { id: 'monogamy', emoji: '🐑', name: 'Monogamo', desc: 'Gioca gli stessi colori in 3 tornei di fila' },
+  { id: 'explorer', emoji: '📚', name: 'Esploratore', desc: 'Vinci tornei in 3 set o cube diversi' },
+  { id: 'veteran', emoji: '🎖️', name: 'Veterano', desc: 'Gioca {n} tornei', tiers: [{ n: 10, name: 'Veterano' }, { n: 25, name: 'Habitué' }, { n: 50, name: 'Istituzione' }] },
+  // Per ridere
+  { id: 'wooden', emoji: '🥄', name: 'Cucchiaio di legno', desc: 'Arriva ultimo in un torneo', fun: true },
+  { id: 'fourth', emoji: '🪵', name: 'Medaglia di legno', desc: 'Arriva 4° in 3 tornei, appena giù dal podio (almeno 5 giocatori)', fun: true },
+  { id: 'bye_king', emoji: '🎁', name: 'Re del bye', desc: 'Ricevi 3 bye', fun: true },
+  { id: 'diplomat', emoji: '🤝', name: 'Diplomatico', desc: '5 patte intenzionali (ID)', fun: true },
+  { id: 'tourist', emoji: '🧳', name: 'Turista', desc: 'Chiudi un torneo senza vincere un match (almeno 3 giocati)', fun: true, secret: true },
+  { id: 'greed', emoji: '🤡', name: 'Avidità', desc: 'Mazzo a 5 colori senza vincere neanche un match', fun: true, secret: true },
+  { id: 'fall', emoji: '🪂', name: 'Dalle stelle alle stalle', desc: 'Vinci un torneo e arriva ultimo in quello dopo', fun: true, secret: true },
+  { id: 'heartbreak', emoji: '💔', name: 'Crepacuore', desc: 'Perdi 3 match 1–2 nello stesso torneo', fun: true, secret: true },
+  { id: 'snail', emoji: '🐌', name: 'Lumaca', desc: 'Finisci un match in pareggio a tempo scaduto (non un ID)', fun: true, secret: true },
+  { id: 'ludo', emoji: '🎰', name: 'Ludopatico', desc: 'Si sa chi è', fun: true, secret: true },
 ];
+const ACH = Object.fromEntries(ACHIEVEMENTS.map(a => [a.id, a]));
+// Nome e descrizione del livello i (0 = primo) di una medaglia; per le medaglie senza livelli quelli fissi
+function achTier(a, i) {
+  if (!a.tiers) return { name: a.name, desc: a.desc };
+  const t = a.tiers[Math.min(i, a.tiers.length - 1)];
+  return { name: t.name, desc: a.desc.replace('{n}', t.n), n: t.n };
+}
 
 // ── Statistiche (cache invalidata a ogni saveLeague) ──
 let _stats = null;
@@ -201,8 +219,8 @@ function emptyStat(id) {
   return {
     id, tournaments: 0, wins: 0, podiums: 0, finishes: [], mW: 0, mL: 0, mD: 0, gW: 0, gL: 0, gD: 0,
     byes: 0, ids: 0, elo: ELO_START, eloHistory: [], colors: {}, opponents: {}, achievements: {},
-    seasonPoints: {}, podiumStreak: 0, lastDate: null, seconds: 0, sets: {},
-    winStreak: 0, winCombos: {}, prevLast: false,
+    seasonPoints: {}, podiumStreak: 0, lastDate: null, seconds: 0, fourths: 0, winSets: {},
+    winStreak: 0, winCombos: {}, prevLast: false, prevWin: false, upsets: 0, lastCombo: null, comboStreak: 0,
   };
 }
 function leagueStats() {
@@ -210,6 +228,13 @@ function leagueStats() {
   const P = new Map();
   const stat = id => { if (!P.has(id)) P.set(id, emptyStat(id)); return P.get(id); };
   const unlock = (s, aid, t) => { if (!s.achievements[aid]) s.achievements[aid] = { date: t.date, tid: t.id }; };
+  // Medaglie a livelli: level = quanti traguardi raggiunti, la data è quella dell'ultimo livello
+  const unlockLevel = (s, aid, value, t) => {
+    const level = ACH[aid].tiers.filter(x => value >= x.n).length, e = s.achievements[aid];
+    if (level > (e ? e.level : 0)) s.achievements[aid] = { date: t.date, tid: t.id, level };
+  };
+  // Colori in ordine WUBRG: "UW" e "WU" sono la stessa combinazione
+  const comboOf = deck => COLORS.filter(c => (deck || '').includes(c)).join('');
   const tournaments = sortedTournaments();
   let lastWinner = null, prevChampion = null;
 
@@ -219,7 +244,9 @@ function leagueStats() {
     const ranked = rankedIds(t).map(cid);
     const droppedSet = new Set((t.dropped || []).map(cid));
     const decks = {}; for (const [k, v] of Object.entries(t.decks || {})) decks[cid(k)] = v;
-    const per = new Map(ids.map(id => [id, { mW: 0, mL: 0, mD: 0, gL: 0, played: 0, all20: true, lostR1: false, close: 0 }]));
+    const per = new Map(ids.map(id => [id, { mW: 0, mL: 0, mD: 0, gL: 0, played: 0, all20: true, lostR1: false, close: 0, closeL: 0 }]));
+    // Elo a inizio torneo, per Davide
+    const startElo = new Map(ranked.map(id => [id, stat(id).elo]));
 
     t.rounds.forEach((round, ri) => {
       for (const m of round) {
@@ -231,15 +258,21 @@ function leagueStats() {
         const ra = sa.elo, rb = sb.elo, ea = eloExpected(ra, rb);
         const res = m.p1wins > m.p2wins ? 1 : m.p1wins < m.p2wins ? 0 : 0.5;
         sa.elo = ra + ELO_K * (res - ea); sb.elo = rb + ELO_K * ((1 - res) - (1 - ea));
-        if (res === 1 && rb - ra >= 100) unlock(sa, 'giant', t);
-        if (res === 0 && ra - rb >= 100) unlock(sb, 'giant', t);
+        // Colpaccio: stessa soglia del toast nel torneo (pronostico Elo sotto il 30%)
+        if (res === 1 && ea < 0.3) unlockLevel(sa, 'giant', ++sa.upsets, t);
+        if (res === 0 && 1 - ea < 0.3) unlockLevel(sb, 'giant', ++sb.upsets, t);
+        if (prevChampion && res === 1 && b === prevChampion) unlock(sa, 'regicide', t);
+        if (prevChampion && res === 0 && a === prevChampion) unlock(sb, 'regicide', t);
         for (const s of [sa, sb]) if (Math.round(s.elo) >= 1700) unlock(s, 'elo1700', t);
         const isID = m.p1wins === 0 && m.p2wins === 0 && m.draws > 0;
         if (isID) { sa.ids++; sb.ids++; }
+        if (res === 0.5 && m.p1wins + m.p2wins > 0) { unlock(sa, 'snail', t); unlock(sb, 'snail', t); }
         sa.gW += m.p1wins; sa.gL += m.p2wins; sa.gD += m.draws; sb.gW += m.p2wins; sb.gL += m.p1wins; sb.gD += m.draws;
         for (const [s, p, opp, r, mine, theirs, col] of [[sa, pa, b, res, m.p1wins, m.p2wins, decks[a]], [sb, pb, a, 1 - res, m.p2wins, m.p1wins, decks[b]]]) {
-          const o = s.opponents[opp] || (s.opponents[opp] = { w: 0, l: 0, d: 0, last: null });
+          const o = s.opponents[opp] || (s.opponents[opp] = { w: 0, l: 0, d: 0, last: null, lossStreak: 0 });
           if (r === 1 && o.w + o.l + o.d >= 3 && o.l > o.w) unlock(s, 'exorcist', t);
+          if (r === 1 && o.lossStreak >= 3) unlock(s, 'revenge', t);
+          o.lossStreak = r === 0 ? o.lossStreak + 1 : 0;
           if (r === 1) { s.mW++; o.w++; } else if (r === 0) { s.mL++; o.l++; } else { s.mD++; o.d++; }
           // Serie di match vinti: la interrompono sconfitte e patte (bye e forfeit non contano, come per l'Elo)
           s.winStreak = r === 1 ? s.winStreak + 1 : 0;
@@ -250,6 +283,7 @@ function leagueStats() {
             if (!(r === 1 && mine === 2 && theirs === 0)) p.all20 = false;
             if (ri === 0 && r === 0) p.lostR1 = true;
             if (r === 1 && mine === 2 && theirs === 1) p.close++;
+            if (r === 0 && mine === 1 && theirs === 2) p.closeL++;
           }
           for (const c of (col || '').split('')) {
             if (!COLORS.includes(c)) continue;
@@ -260,9 +294,10 @@ function leagueStats() {
       }
     });
 
+    const active = ranked.filter(x => !droppedSet.has(x)).length;
     ranked.forEach((id, rank) => {
-      const s = stat(id), p = per.get(id) || { mW: 0, mL: 0, mD: 0, gL: 0, played: 0, all20: false, lostR1: false, close: 0 };
-      const dropped = droppedSet.has(id), N = ranked.length;
+      const s = stat(id), p = per.get(id) || { mW: 0, mL: 0, mD: 0, gL: 0, played: 0, all20: false, lostR1: false, close: 0, closeL: 0 };
+      const dropped = droppedSet.has(id), N = ranked.length, combo = comboOf(decks[id]);
       s.tournaments++; s.lastDate = t.date;
       s.finishes.push({ tid: t.id, date: t.date, pos: rank + 1, of: N, dropped });
       s.seasonPoints[t.season] = (s.seasonPoints[t.season] || 0) + championshipPoints(rank, N, dropped);
@@ -274,30 +309,36 @@ function leagueStats() {
       if (s.podiumStreak >= 3) unlock(s, 'streak3', t);
       if (!dropped && rank === 0) {
         s.wins++; unlock(s, 'first_win', t);
-        if (p.mL === 0) unlock(s, 'undefeated', t);
         if (t.mode === 'swiss' && p.played >= 3 && p.all20) unlock(s, 'sweep', t);
         if (p.lostR1) unlock(s, 'comeback', t);
-        if (s.wins >= 3) unlock(s, 'triple', t);
+        unlockLevel(s, 'triple', s.wins, t);
         if (prevChampion === id) unlock(s, 'double', t);
         if (s.prevLast) unlock(s, 'phoenix', t);
-        // Colori del mazzo vincente in ordine WUBRG: "UW" e "WU" sono la stessa combinazione
-        const combo = COLORS.filter(c => (decks[id] || '').includes(c)).join('');
+        // Davide: Elo di partenza più basso di tutti gli altri (a pari Elo, per esempio al primo torneo, non vale)
+        if (N >= 4 && ranked.every(x => x === id || startElo.get(x) > startElo.get(id))) unlock(s, 'davide', t);
         if (combo.length === 1) unlock(s, 'purist', t);
         if (combo.length >= 3) unlock(s, 'domain', t);
         if (combo) { s.winCombos[combo] = true; if (Object.keys(s.winCombos).length >= 3) unlock(s, 'chameleon', t); }
+        if (t.set && t.set.trim()) { s.winSets[t.set.trim().toLowerCase()] = true; if (Object.keys(s.winSets).length >= 3) unlock(s, 'explorer', t); }
       }
       if (!dropped && rank === 1 && ++s.seconds >= 3) unlock(s, 'second', t);
-      if (!dropped && p.mW >= 3 && p.gL === 0) unlock(s, 'wall', t);
+      // 4° con almeno 5 giocatori rimasti: con 4 il quarto è l'ultimo, e c'è già il cucchiaio
+      if (!dropped && rank === 3 && active >= 5 && ++s.fourths >= 3) unlock(s, 'fourth', t);
       if (p.close >= 3) unlock(s, 'nailbiter', t);
-      if (t.set && t.set.trim()) s.sets[t.set.trim().toLowerCase()] = true;
-      if (Object.keys(s.sets).length >= 5) unlock(s, 'explorer', t);
-      const last = !dropped && N >= 4 && rank === ranked.filter(x => !droppedSet.has(x)).length - 1;
+      if (p.closeL >= 3) unlock(s, 'heartbreak', t);
+      if (p.played >= 3 && p.mW === 0) unlock(s, 'tourist', t);
+      if (combo.length === 5 && p.mW >= 1) unlock(s, 'rainbow', t);
+      if (combo.length === 5 && p.played >= 2 && p.mW === 0) unlock(s, 'greed', t);
+      if (COLORS.every(c => s.colors[c] && s.colors[c].mW > 0)) unlock(s, 'palette', t);
+      // Monogamo: i tornei senza mazzo segnato non interrompono la serie
+      if (combo) { s.comboStreak = combo === s.lastCombo ? s.comboStreak + 1 : 1; s.lastCombo = combo; if (s.comboStreak >= 3) unlock(s, 'monogamy', t); }
+      const last = !dropped && N >= 4 && rank === active - 1;
       if (last) unlock(s, 'wooden', t);
-      s.prevLast = last;
-      if (s.tournaments >= 10) unlock(s, 'veteran', t);
+      if (last && s.prevWin) unlock(s, 'fall', t);
+      s.prevLast = last; s.prevWin = !dropped && rank === 0;
+      unlockLevel(s, 'veteran', s.tournaments, t);
       if (s.ids >= 5) unlock(s, 'diplomat', t);
       if (s.byes >= 3) unlock(s, 'bye_king', t);
-      if (COLORS.every(c => s.colors[c] && s.colors[c].decks > 0)) unlock(s, 'rainbow', t);
       if (/ludopatic/i.test(leagueName(id))) unlock(s, 'ludo', t);
       s.eloHistory.push({ tid: t.id, date: t.date, elo: s.elo });
     });
@@ -322,33 +363,43 @@ function leagueStats() {
   _stats = { players: P, lastWinner, tournaments };
   return _stats;
 }
-// ── Obiettivi: progresso verso le medaglie a conteggio non ancora sbloccate ──
-// [valore attuale, traguardo, unità, partenza] (l'Elo parte da ELO_START, non da zero)
+// ── Obiettivi: progresso verso le medaglie a conteggio non ancora sbloccate (o verso il livello successivo) ──
+// [valore attuale, traguardo, unità, partenza] (l'Elo parte da ELO_START, non da zero); traguardo null = dai livelli
 function achievementProgress(s) {
   const n = o => Object.keys(o).length;
   const goals = {
-    triple: [s.wins, 3, 'vittorie'],
+    triple: [s.wins, null, 'vittorie'],
     streak3: [s.podiumStreak, 3, 'podi di fila'],
     second: [s.seconds, 3, 'secondi posti'],
     unstoppable: [s.winStreak, 10, 'match vinti di fila'],
+    giant: [s.upsets, null, 'colpacci'],
     elo1700: [s.elo, 1700, 'Elo', ELO_START],
     chameleon: [n(s.winCombos), 3, 'combinazioni vincenti'],
-    rainbow: [COLORS.filter(c => s.colors[c] && s.colors[c].decks > 0).length, 5, 'colori'],
-    veteran: [s.tournaments, 10, 'tornei'],
-    explorer: [n(s.sets), 5, 'set o cube'],
+    palette: [COLORS.filter(c => s.colors[c] && s.colors[c].mW > 0).length, 5, 'colori'],
+    monogamy: [s.comboStreak, 3, 'tornei di fila'],
+    explorer: [n(s.winSets), 3, 'set vinti'],
+    veteran: [s.tournaments, null, 'tornei'],
+    fourth: [s.fourths, 3, 'quarti posti'],
     diplomat: [s.ids, 5, 'ID'],
     bye_king: [s.byes, 3, 'bye'],
   };
   const out = {};
-  for (const [id, [cur, goal, unit, from = 0]] of Object.entries(goals)) {
-    if (!s.achievements[id]) out[id] = { cur, goal, unit, ratio: Math.max(0, Math.min(1, (cur - from) / (goal - from))) };
+  for (const [id, [cur, goal0, unit, from0 = 0]] of Object.entries(goals)) {
+    const a = ACH[id], e = s.achievements[id];
+    let goal = goal0, from = from0, tier = achTier(a, 0);
+    if (a.tiers) {
+      const level = e ? e.level : 0;
+      if (level >= a.tiers.length) continue;
+      tier = achTier(a, level); goal = tier.n; if (level) from = a.tiers[level - 1].n;
+    } else if (e) continue;
+    out[id] = { cur, goal, unit, name: tier.name, desc: tier.desc, ratio: Math.max(0, Math.min(1, (cur - from) / (goal - from))) };
   }
   return out;
 }
-// Le n medaglie più vicine (solo quelle già avviate), a parità nell'ordine di ACHIEVEMENTS
+// Le n medaglie più vicine (solo quelle già avviate e non per ridere), a parità nell'ordine di ACHIEVEMENTS
 function nextGoals(s, n) {
   const p = achievementProgress(s);
-  return ACHIEVEMENTS.filter(a => p[a.id] && p[a.id].ratio > 0).map(a => ({ a, ...p[a.id] })).sort((x, y) => y.ratio - x.ratio).slice(0, n);
+  return ACHIEVEMENTS.filter(a => !a.fun && p[a.id] && p[a.id].ratio > 0).map(a => ({ a, ...p[a.id] })).sort((x, y) => y.ratio - x.ratio).slice(0, n);
 }
 
 function playerStats(id) { return leagueStats().players.get(canonicalId(id)) || emptyStat(canonicalId(id)); }
