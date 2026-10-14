@@ -201,6 +201,9 @@ input::placeholder { color: var(--text-dim); }
   padding: 0 12px;
 }
 .player-remove:active { background: var(--red); color: #fff; }
+/* Neutro finché non lo tocchi: otto riquadri rossi in fila pesavano più dei nomi */
+.player-remove { background: transparent; color: var(--text-dim); }
+.player-remove:hover { background: var(--red-light); color: var(--red); }
 /* Torneo avviato: la lista giocatori resta visibile ma non si tocca */
 .player-remove:disabled { display: none; }
 
@@ -218,7 +221,7 @@ input::placeholder { color: var(--text-dim); }
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 .seat-name { flex: 1; font-weight: 600; font-size: 0.95rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.seat-arrows { display: flex; flex-direction: column; gap: 3px; }
+.seat-arrows { display: flex; gap: 6px; }
 .seat-arrow-btn {
   background: var(--bg-input); border: 1px solid var(--border);
   color: var(--text-mid); min-width: 44px; min-height: 44px;
@@ -306,6 +309,8 @@ input::placeholder { color: var(--text-dim); }
   transition: color 0.3s;
 }
 .match-player.winner { color: var(--accent-dark); }
+.match-player.winner::after { content: " ✓"; color: var(--green); }
+.match-player.loser { color: var(--text-dim); font-weight: 600; }
 .match-player.dropped { color: var(--text-dim); text-decoration: line-through; }
 .match-vs {
   font-size: 0.65rem; color: var(--text-dim); font-weight: 800;
@@ -329,6 +334,13 @@ input::placeholder { color: var(--text-dim); }
 .match-score-btns.main { flex-wrap: nowrap; gap: 6px; }
 .match-score-btns.main .score-btn { flex: 1 1 0; min-width: 0; padding-left: 2px; padding-right: 2px; }
 .drop-row { display: flex; gap: 8px; }
+.drop-more > summary { list-style: none; cursor: pointer; min-height: 40px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600; color: var(--text-dim); }
+.drop-more > summary::-webkit-details-marker { display: none; }
+.drop-more > summary::after { content: ' \25BE'; margin-left: 6px; font-size: 0.7rem; }
+.drop-more[open] > summary::after { content: ' \25B4'; }
+.drop-more > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-xs); }
+/* Setup e Round: stato del torneo con le azioni (Nuovo torneo, Vai al round) */
+.setup-state { border-color: var(--accent); }
 .drop-row select { flex: 1; min-width: 0; }
 .drop-row .btn { flex: none; }
 .more-results { margin: 0 16px 10px; }
@@ -882,3 +894,6 @@ button.ach:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px
 .hist-btns { display: flex; flex-direction: column; gap: 6px; flex: none; }
 .hist-now { flex: none; font-size: 0.72rem; font-weight: 800; color: var(--accent-dark); background: var(--accent-light); padding: 6px 10px; border-radius: var(--radius-xs); }
 .hist-t strong { display: block; }
+
+/* Tavolo: "Inizia torneo" resta in vista sopra la barra in basso mentre si scorre tavolo e accoppiamenti */
+#startBtn { position: sticky; bottom: calc(74px + env(safe-area-inset-bottom, 0px)); z-index: 5; box-shadow: var(--shadow-lg); }

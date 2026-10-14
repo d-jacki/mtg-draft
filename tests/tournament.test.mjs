@@ -346,6 +346,28 @@ section('Torneo');
   body.appendChild = orig; sandbox.document.getElementById = getEl; delete sandbox.matchMedia;
 }
 
+// ── "Nuovo torneo" facile da trovare: Setup, Round e Classifica a torneo avviato o concluso ──
+{
+  const html = id => sandbox.document.getElementById(id).innerHTML;
+  reset(['A', 'B', 'C', 'D']); S.T.archivedId = null;
+  S.T.rounds = [{ pairings: [match(1, 2, 2, 0), match(3, 4, 1, 2)] }]; S.T.totalRounds = 1; S.viewingRound = 1;
+  app.updateStatus();
+  check('setup: torneo in corso → stato e "Vai al round"', /Torneo in corso/.test(html('setupState')) && /Vai al round/.test(html('setupState')) && /confirmReset\(\)/.test(html('setupState')));
+  app.renderRound();
+  check('round: match finito con vincitore e perdente', /match-player winner[^"]*">A/.test(html('roundContent')) && /match-player loser[^"]*">B/.test(html('roundContent')));
+  check('round: il ritiro sta chiuso in una voce', /<details class="drop-more mb"><summary>Ritira un giocatore/.test(html('roundContent')));
+  S.T.ended = true; S.T.archivedId = 't_x';
+  app.updateStatus(); app.renderRound(); app.renderStandings();
+  check('setup: torneo concluso → vincitore e "Nuovo torneo" principale', /Torneo concluso/.test(html('setupState')) && /Ha vinto <b>A<\/b>/.test(html('setupState')) && /btn-primary" onclick="confirmReset\(\)">Nuovo torneo/.test(html('setupState')));
+  check('round: torneo concluso → classifica e nuovo torneo', /Torneo concluso/.test(html('roundContent')) && /btn-primary btn-sm" onclick="confirmReset\(\)"/.test(html('roundContent')));
+  check('classifica: a torneo salvato "Nuovo torneo" è il pulsante principale', /<button class="btn btn-primary" onclick="confirmReset\(\)">Nuovo torneo/.test(html('standingsContent')));
+  S.T.archivedId = null; app.renderStandings();
+  check('classifica: non ancora salvato → prima "Salva nello storico"', html('standingsContent').indexOf('Salva nello storico') < html('standingsContent').indexOf('Nuovo torneo') && /btn-secondary mt" onclick="confirmReset/.test(html('standingsContent')));
+  S.T.started = false; app.updateStatus();
+  check('setup: senza torneo nessuna card', html('setupState') === '');
+  S.T.ended = false; S.T.started = true;
+}
+
 // ── Avviso del browser all'uscita: solo per le chiusure per sbaglio, non per le ricariche dell'app ──
 // (va per ultimo: dopo reloadApp la pagina "sta ricaricando" e l'avviso resta spento)
 {
