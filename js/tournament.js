@@ -229,6 +229,7 @@ function captureSetName() { const el = $id('setNameInp'); if (el) T.set = el.val
 function startWithMode(mode, rounds, timerMin) {
   syncDraftOrder();
   T.id = uid('t'); T.acks = {}; T.archivedId = null; T.startedAt = Date.now();
+  if (typeof liveAllowReplace === 'function') liveAllowReplace();
   T.mode = mode; T.started = true; T.ended = false; T.rounds = []; T.currentRound = 0;
   if (mode === 'swiss') { T.totalRounds = rounds || Math.ceil(Math.log2(T.players.length)); TM.total = (timerMin || 50) * 60; }
   else { T.totalRounds = T.players.length; generateAllRRRounds(); }
@@ -370,7 +371,7 @@ function applyOp(op){
   // Ripristino di una versione dalla cronologia: tutto lo stato torna com'era, gli acks restano i più recenti
   if(op.t==='restore'){const acks={...(T.acks||{})};liveLoadState(op.state);for(const[k,v]of Object.entries(acks))T.acks[k]=Math.max(T.acks[k]||0,v);return true;}
   if(op.t==='deck'){T.decks=T.decks||{};T.decks[op.pid]=op.colors;return true;}
-  if(op.t==='archived'){T.archivedId=op.id;T.players.forEach(p=>{if(op.lids&&op.lids[p.id])p.leagueId=op.lids[p.id];});return true;}
+  if(op.t==='archived'){if(!T.ended)return false;T.archivedId=op.id;T.players.forEach(p=>{if(op.lids&&op.lids[p.id])p.leagueId=op.lids[p.id];});return true;}
   if(T.ended)return false;
   switch(op.t){
     case 'res':{
@@ -378,7 +379,8 @@ function applyOp(op){
       if(!m||m.p1!==op.p1||m.p2!==op.p2||m.bye||m.rest)return false;
       // Swiss: solo il round in corso, salvo correzione di un round chiuso in modalità master (force)
       if(T.mode!=='roundrobin'&&op.r!==T.currentRound-1&&!(op.force&&op.r<T.currentRound))return false;
-      m.p1wins=op.w1;m.p2wins=op.w2;m.draws=op.d;if(op.w1==null)m.forfeit=false;if(op.w1!=null&&typeof op.id==='boolean')m.id=op.id;else delete m.id;return true;
+      // Il forfeit lo mette solo il drop su una partita aperta: un risultato inserito insieme da un altro telefono vale
+      m.p1wins=op.w1;m.p2wins=op.w2;m.draws=op.d;m.forfeit=false;if(op.w1!=null&&typeof op.id==='boolean')m.id=op.id;else delete m.id;return true;
     }
     case 'drop':{
       const pid=op.pid,p=P(pid);if(!p||p.dropped)return false;
@@ -400,7 +402,10 @@ function applyOp(op){
       T.rounds.pop();T.currentRound--;clearTimerState();if(T.rounds.length)T.rounds[T.rounds.length-1].locked=false;
       T.players.forEach(p=>{if(p.droppedAtRound&&p.droppedAtRound>T.currentRound){p.dropped=false;p.droppedAtRound=null;}});return true;
     }
-    case 'end':{T.ended=true;TM.running=false;TM.startedAt=null;timerEnsure();T.rounds.forEach(r=>r.locked=true);return true;}
+    case 'end':{
+      // Come per 'next': un altro telefono può aver annullato il round o tolto un risultato (from assente: coda di una versione precedente)
+      if(op.from!=null&&(T.currentRound!==op.from||(T.mode==='roundrobin'?T.rounds:[T.rounds[T.currentRound-1]]).some(r=>!r||r.pairings.some(m=>!m.rest&&m.p1wins==null))))return false;
+      T.ended=true;TM.running=false;TM.startedAt=null;timerEnsure();T.rounds.forEach(r=>r.locked=true);return true;}
     case 'timer':{
       if(op.round!==T.currentRound)return false;
       TM.running=op.running;TM.seconds=op.seconds;TM.startedAt=op.startedAt;
@@ -428,7 +433,7 @@ function opNote(op){
   return '';
 }
 // Messaggio per un'operazione scartata perché un altro telefono è arrivato prima
-function opRejectedMsg(op){return op.t==='next'?'Il round successivo l\'ha già generato un altro telefono':op.t==='res'?'Risultato non salvato: il round è cambiato su un altro telefono':op.t==='timer'?'Timer non aggiornato: il round è cambiato':'Già fatto da un altro telefono';}
+function opRejectedMsg(op){return op.t==='next'?'Il round successivo l\'ha già generato un altro telefono':op.t==='res'?'Risultato non salvato: il round è cambiato su un altro telefono':op.t==='timer'?'Timer non aggiornato: il round è cambiato':op.t==='end'?'Torneo non concluso: il round è cambiato su un altro telefono':'Già fatto da un altro telefono';}
 
 // ── ROUND ──
 function nextRound(){if(T.currentRound>=T.totalRounds){endTournament();return;}if(!doOp({t:'next',from:T.currentRound}))return;viewingRound=T.currentRound;renderRound();updateStatus();save();}
@@ -574,7 +579,7 @@ function copyPairings(){
 function confirmEnd(){showModal('Terminare il torneo?','La classifica diventerà definitiva e i risultati non si potranno più modificare.',endTournament);}
 function confirmUndo(){showModal('Annullare il round?','Tornerai al round precedente.',undoRound);}
 function undoRound(){if(!doOp({t:'undo',from:T.currentRound}))return;viewingRound=T.currentRound;updateStatus();renderRound();renderStandings();save();toast('Round annullato');}
-function endTournament(){if(!doOp({t:'end'}))return;const archived=archiveCurrent();updateStatus();renderRound();renderStandings();save();switchTab('standings');celebrate();vibrate([100,60,100,60,250]);toast(archived?'🏆 Torneo concluso e salvato nella lega':'Torneo concluso!');}
+function endTournament(){if(!doOp({t:'end',from:T.currentRound}))return;const archived=archiveCurrent();updateStatus();renderRound();renderStandings();save();switchTab('standings');celebrate();vibrate([100,60,100,60,250]);toast(archived?'🏆 Torneo concluso e salvato nella lega':'Torneo concluso!');}
 // L'id in archivio è quello del torneo: se due telefoni che lo gestiscono insieme lo salvano, resta un solo documento
 function archiveCurrent(){if(!T.ended||T.archivedId)return false;try{const t=archiveTournament();doOp({t:'archived',id:t.id,lids:Object.fromEntries(T.players.map(p=>[p.id,p.leagueId]))});save();return true;}catch(e){console.error(e);toast('Errore nel salvataggio nello storico');return false;}}
 function celebrate(){try{if(!document.body||document.getElementById('confettiWrap')||reducedMotion())return;const wrap=document.createElement('div');wrap.id='confettiWrap';wrap.style.cssText='position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:500;';const colors=['#3d6b8e','#c4793c','#3a8a5c','#e8b13c','#c0453a','#8aa3b8'];for(let i=0;i<70;i++){const p=document.createElement('div');p.className='confetti-piece';p.style.left=Math.random()*100+'%';p.style.background=colors[i%colors.length];p.style.animationDuration=(2.4+Math.random()*1.8)+'s';p.style.animationDelay=(Math.random()*0.7)+'s';p.style.transform=`rotate(${Math.random()*360}deg)`;wrap.appendChild(p);}document.body.appendChild(wrap);setTimeout(()=>{if(wrap.parentNode)wrap.parentNode.removeChild(wrap);},5500);}catch(e){}}

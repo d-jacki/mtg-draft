@@ -48,3 +48,12 @@ Eseguirli prima di ogni push (vedi README).
 - **Realtime**: gli eventi di un WebSocket già sostituito non staccano più quello nuovo.
 - **Schema**: advisory lock per lega nelle funzioni con PIN (tentativi contati in modo atomico, seq visibili in ordine).
 - **Bassa priorità** (secondo giro): service worker con `waitUntil` sull'aggiornamento in background e controllo aggiornamenti ogni 30 minuti; id deterministici per i giocatori nuovi archiviati (niente profili doppi se due telefoni chiudono insieme); timer contato sull'ora del server (`league_info.now`, schema da rilanciare); `prefers-reduced-motion` su tutte le animazioni, coriandoli e scorrimento.
+
+## Check 2026-10-14 (uso da più telefoni)
+
+- **Drop + risultato insieme**: il drop su un telefono e il risultato vero dello stesso match su un altro lasciavano il match con il risultato ma segnato forfeit (fuori dall'Elo, "(forfeit)" al vincitore sbagliato, non più modificabile). Ora un risultato inserito toglie il forfeit.
+- **"Termina torneo" concorrente**: la fine torneo non aveva condizioni, quindi riapplicata dopo un "Annulla round" di un altro telefono chiudeva il torneo un round prima. Ora porta il round da cui è partita e serve che i risultati ci siano tutti, come "Round successivo".
+- **Storico scritto su uno stato vecchio**: chi chiude il torneo lo archivia subito; se poi arrivava lo stato di un altro telefono (risultato corretto, fine da offline, ripristino) lo storico restava quello vecchio. Ora dopo il riallineamento si rifà sullo stato condiviso, o si ritira se il torneo non è più concluso (torna alla fine vera).
+- **PIN inserito a torneo avviato**: la prima pubblicazione sostituiva senza chiedere il torneo che un altro telefono aveva in diretta (anche avviando offline). Ora chiede: trasmettere il proprio, guardare l'altro o continuare solo qui. "Avvia comunque" e il ripristino, già confermati, non chiedono di nuovo.
+- **Unisciti** da un telefono con un torneo concluso ma non salvato nello storico: ora chiede conferma invece di sostituirlo.
+- Noti, non corretti: due schede/istanze dell'app sullo stesso telefono condividono l'id del telefono (si possono disallineare); "Esci solo da questo telefono" lascia il telefono tra i co-gestori, quindi agli altri resta il ⇄ e "Chiudi per tutti" chiede il PIN master.

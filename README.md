@@ -92,7 +92,7 @@ L'harness (`tests/harness.mjs`) carica gli script nell'ordine di `index.html` (t
 - `tournament.test.mjs` — tiebreaker, GW% con ID/bye, pairing (anche performance a 16 giocatori), round robin, drop/forfeit, undo, tavolo, UX, movimento ridotto, avviso all'uscita
 - `league.test.mjs` — archivio, campionato, Elo, scontri diretti, unione profili, achievement, import/export, colori, colpaccio, obiettivi, rendering, validazione dei dati esterni, archivio dello stesso torneo da due telefoni
 - `sync.test.mjs` — primo caricamento, modifiche remote, last-write-wins, PIN errato, sola lettura, paginazione, link invito (anche verso un altro server), modifiche caricate in ritardo, schema senza `seq`
-- `live.test.mjs` — lega predefinita, verifica PIN e blocco anti forza bruta, pubblicazione live, vista "Segui live", Realtime, torneo gestito da più telefoni (conflitti, round concorrenti, unione, distacco), stati live non validi, WebSocket riaperto, timer con orologi sfasati
+- `live.test.mjs` — lega predefinita, verifica PIN e blocco anti forza bruta, pubblicazione live, vista "Segui live", Realtime, torneo gestito da più telefoni (conflitti, round concorrenti, fine torneo e drop concorrenti, unione, distacco, PIN inserito a torneo avviato), stati live non validi, WebSocket riaperto, timer con orologi sfasati
 - `admin.test.mjs` — PIN master, cronologia e ripristino (anche di un torneo sostituito), correzione di round chiusi, tornei eliminati
 - `sw.test.mjs` — service worker: stale-while-revalidate con `waitUntil`, fallback offline, richieste cross-origin
 

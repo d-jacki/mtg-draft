@@ -251,6 +251,89 @@ section('Torneo condiviso');
   app.closeModal();
 }
 
+// ── 6b. Operazioni concorrenti a fine torneo, drop, PIN inserito dopo ──
+{
+  const remote = (fn, dev = 'd_altro') => {
+    const d = JSON.parse(JSON.stringify(server.live.data));
+    fn(d);
+    d.device = dev; d.publishedAt = Date.now(); d.acks = { ...d.acks, [dev]: (d.acks[dev] || 0) + 1 };
+    server.live = { data: d, rev: server.live.rev + 1, updated_at: server.live.updated_at + 1 };
+  };
+  const push = async () => { const r = await app.livePublishNow(false); await sleep(150); return r; };
+  const toastText = () => sandbox.document.getElementById('toast').textContent;
+  const fresh = async rounds => {
+    resetServer(); connect('1234'); S.syncCfg.live = true; S.live.rev = 0; S.live.updatedAt = 0; S.live.data = null;
+    reset(['Anna', 'Bruno', 'Carla', 'Dario']); S.T.started = false; S.T.rounds = []; S.T.currentRound = 0;
+    app.startWithMode('swiss', rounds, 50); await push();
+  };
+
+  // Drop su un telefono, risultato vero dello stesso match sull'altro: vale il risultato, senza forfeit
+  await fresh(3);
+  const dropped = S.T.rounds[0].pairings[0].p1;
+  remote(d => { const p = d.players.find(p => p.id === dropped); p.dropped = true; p.droppedAtRound = 1; Object.assign(d.rounds[0].pairings[0], { p1wins: 0, p2wins: 2, forfeit: true }); });
+  app.setRes(0, 0, 2, 1, 0); await push();
+  const m = S.T.rounds[0].pairings[0];
+  check('drop concorrente: il risultato inserito toglie il forfeit', m.p1wins === 2 && m.p2wins === 1 && m.forfeit === false && server.live.data.rounds[0].pairings[0].forfeit === false);
+
+  // Un telefono annulla l'ultimo round mentre l'altro preme "Termina torneo"
+  await fresh(2);
+  S.T.rounds[0].pairings.forEach((x, i) => app.setRes(0, i, 2, 0, 0)); app.nextRound(); await push();
+  S.T.rounds[1].pairings.forEach((x, i) => app.setRes(1, i, 2, 0, 0)); await push();
+  remote(d => { d.currentRound = 1; d.rounds.pop(); });
+  app.endTournament();
+  const tid = S.T.id;
+  check('fine scartata: in locale era concluso e archiviato', S.T.ended && !!S.L.tournaments[tid]);
+  await push();
+  check('fine scartata: il round annullato vince, il torneo resta aperto', !S.T.ended && S.T.currentRound === 1 && server.live.data.ended === false);
+  check('fine scartata: avviso all\'utente', /Torneo non concluso/.test(toastText()), toastText());
+  check('fine scartata: lo storico scritto prima viene ritirato', S.L.tournaments[tid].deleted === true && !S.T.archivedId);
+  S.T.rounds[0].pairings.forEach((x, i) => app.setRes(0, i, 1, 2, 0)); app.nextRound();
+  S.T.rounds[1].pairings.forEach((x, i) => app.setRes(1, i, 2, 0, 0)); app.endTournament(); await push();
+  check('fine scartata: alla fine vera torna nello storico', !S.L.tournaments[tid].deleted && S.T.archivedId === tid && server.live.data.ended === true);
+
+  // Un risultato corretto su un altro telefono mentre qui si chiude il torneo: lo storico segue lo stato condiviso
+  await fresh(1);
+  S.T.rounds[0].pairings.forEach((x, i) => app.setRes(0, i, 2, 0, 0)); await push();
+  remote(d => { Object.assign(d.rounds[0].pairings[0], { p1wins: 0, p2wins: 2 }); });
+  const created = Date.now() - 5000;
+  app.endTournament(); S.L.tournaments[S.T.id].createdAt = created;
+  await push();
+  const arch = S.L.tournaments[S.T.id];
+  check('fine concorrente: torneo concluso con il risultato dell\'altro telefono', S.T.ended && S.T.rounds[0].pairings[0].p2wins === 2 && server.live.data.ended === true);
+  check('fine concorrente: storico rifatto sullo stato condiviso', arch.rounds[0][0].p2wins === 2 && arch.final.indexOf(arch.rounds[0][0].p2) < arch.final.indexOf(arch.rounds[0][0].p1), JSON.stringify(arch.rounds[0][0]));
+  check('fine concorrente: lo storico rifatto resta al suo posto (createdAt)', arch.createdAt === created);
+
+  // Torneo avviato senza PIN mentre un altro telefono è in diretta: inserendo il PIN non lo sostituisce senza chiedere
+  await fresh(3);
+  remote(d => { d.id = 't_altro'; d.acks = {}; });
+  connect(''); S.live.rev = 0; await app.liveFetch();
+  reset(['Ugo', 'Vera', 'Zoe', 'Yuri']); S.T.started = false; S.T.rounds = []; S.T.currentRound = 0;
+  app.startWithMode('swiss', 3, 50);
+  sandbox.document.getElementById('modal').classList.remove('active');
+  sandbox.document.getElementById('modalTitle').textContent = '';
+  S.syncCfg.pin = '1234'; app.liveResume(); await sleep(1000);
+  check('PIN dopo: il torneo in diretta dell\'altro telefono resta', server.live.data.id === 't_altro' && app.liveSh().detached === true);
+  check('PIN dopo: chiede cosa fare', sandbox.document.getElementById('modalTitle').textContent === 'Torneo già in diretta');
+  app.closeModal(); app.liveReplaceOther(); await sleep(150);
+  check('PIN dopo: scegliendo "Trasmetti il mio" lo sostituisce', server.live.data.id === S.T.id && !app.liveSh().detached);
+
+  // "Avvia comunque il mio": scelto davanti all'avviso, nessuna seconda domanda
+  remote(d => { d.id = 't_altro2'; d.acks = {}; });
+  S.live.rev = 0; await app.liveFetch(); await sleep(150);
+  reset(['A', 'B', 'C', 'D']); S.T.started = false; S.T.rounds = []; S.T.currentRound = 0;
+  app.startWithMode('swiss', 3, 50); await push();
+  check('avvia comunque: il torneo nuovo va in diretta', server.live.data.id === S.T.id);
+
+  // Unirsi da un telefono con un torneo concluso ma non salvato nello storico chiede prima
+  remote(d => { d.id = 't_quarto'; d.acks = {}; d.ended = false; });
+  S.live.rev = 0; await app.liveFetch();
+  S.T.ended = true; S.T.archivedId = null; S.T.id = 't_locale';
+  sandbox.document.getElementById('modalTitle').textContent = '';
+  app.liveJoin();
+  check('unisciti: torneo concluso non archiviato → chiede prima', sandbox.document.getElementById('modalTitle').textContent === 'Unirti al torneo?' && S.T.id === 't_locale');
+  app.closeModal();
+}
+
 // ── 7. Stato live con markup: ignorato ──
 section('Live: dati da fuori e Realtime');
 {

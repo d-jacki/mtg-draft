@@ -30,7 +30,7 @@ function liveSh() {
   if (SH && SH.tid === tid) return SH;
   let s = null;
   try { s = JSON.parse(localStorage.getItem(SH_KEY)); } catch (e) {}
-  SH = tid && s && s.tid === tid ? s : { tid, rev: null, seq: 0, pending: [], detached: false };
+  SH = tid && s && s.tid === tid ? s : { tid, rev: null, seq: 0, pending: [], detached: false, replaces: null };
   return SH;
 }
 function saveSh() { try { localStorage.setItem(SH_KEY, JSON.stringify(SH)); } catch (e) {} }
@@ -107,6 +107,14 @@ async function livePublishNow(clear, keepalive) {
   const sentRev = sh.rev;
   let retry = false;
   try {
+    // Prima pubblicazione: il torneo che un altro telefono ha in diretta (avviato mentre questo era offline, o PIN
+    // inserito a torneo già iniziato) non si sostituisce senza chiedere
+    if (sh.rev == null) {
+      await liveFetch();
+      if (SH !== sh) return false;
+      const d = live.data;
+      if (d && d.id && d.id !== T.id && d.started && !d.ended && d.id !== sh.replaces && Date.now() - (d.publishedAt || 0) < 24 * 3600e3) { liveAskReplace(sh); return false; }
+    }
     const snap = liveSnapshot();
     snap.note = liveNote(sh); snap.by = liveMe() || null; // per la cronologia
     const out = await sbRpc('league_live_sync', { p_league: syncCfg.league, p_pin: syncCfg.pin, p_id: T.id, p_data: snap, p_rev: sh.rev, p_updated_at: Date.now() }, keepalive) || {};
@@ -139,6 +147,22 @@ function liveNote(sh) {
   const notes = sh.pending.map(opNote).filter(Boolean);
   if (!notes.length) return sh.rev == null ? 'Torneo in diretta' : '';
   return notes.slice(0, 3).join(' · ') + (notes.length > 3 ? ` · +${notes.length - 3}` : '');
+}
+// Avvio di un torneo: quello che un altro telefono ha in diretta si può sostituire solo se chi avvia l'ha visto e ha
+// scelto "Avvia comunque" (handleStart). Senza PIN non c'è stata la domanda: la prima pubblicazione chiederà.
+function liveAllowReplace() { liveSh().replaces = liveOtherActive() ? live.data.id : null; saveSh(); }
+function liveAskReplace(sh) {
+  sh.detached = true; sh.pending = []; saveSh(); renderLiveBadge();
+  if ($id('modal').classList.contains('active')) { toast('In diretta c\'è il torneo di un altro telefono: il tuo continua solo qui'); return; }
+  showModalCustom('Torneo già in diretta', 'Un altro telefono sta trasmettendo un altro torneo. Il tuo per ora continua solo su questo telefono.',
+    `<button class="btn btn-primary" onclick="closeModal();liveReplaceOther()">Trasmetti il mio al suo posto</button>
+    <button class="btn btn-secondary mt" onclick="closeModal();openLive()">Guarda il suo</button>
+    <button class="btn btn-secondary btn-sm mt" onclick="closeModal()">Continua solo qui</button>`);
+}
+function liveReplaceOther() {
+  if (!T.started || !T.id) return;
+  Object.assign(liveSh(), { detached: false, rev: null, pending: [], replaces: (live.data && live.data.id) || null }); saveSh();
+  livePublishSoon(0); renderLiveBadge();
 }
 // Toglie il torneo dal live, solo se quello in diretta è ancora questo (non chiude il torneo di un altro)
 async function liveClear(keepalive) {
@@ -176,7 +200,7 @@ function liveReconcile(d, rev) {
     sh.rev = rev; sh.pending = sh.pending.filter(op => op.seq > acked); saveSh();
     return;
   }
-  const prevRound = T.currentRound, wasEnded = T.ended, prevDecks = { ...(T.decks || {}) }, rejected = [];
+  const prevRound = T.currentRound, wasEnded = T.ended, prevDecks = { ...(T.decks || {}) }, prevArch = T.archivedId, prevSig = resultsSig(), rejected = [];
   liveLoadState(d);
   sh.rev = rev;
   sh.pending = sh.pending.filter(op => {
@@ -185,10 +209,21 @@ function liveReconcile(d, rev) {
     rejected.push(op); return false;
   });
   saveSh(); save();
+  liveFixArchive(prevArch, prevSig);
   archiveDeckChanges(prevDecks);
   liveRefreshTournament(prevRound, wasEnded);
-  if (rejected.length) toast(opRejectedMsg(rejected[rejected.length - 1]));
+  // La prima scartata è la causa (una fine torneo scartata si porta dietro il suo "salvato nello storico")
+  if (rejected.length) toast(opRejectedMsg(rejected[0]));
   else if (sh.pending.some(op => op.regen)) toast('Un risultato è cambiato su un altro telefono: pairing del round ricalcolati');
+}
+// Storico scritto su uno stato che poi è cambiato (torneo chiuso da offline o insieme a una modifica su un altro
+// telefono, ripristino dalla cronologia): si rifà sullo stato condiviso, o si ritira se il torneo non è più concluso
+function liveFixArchive(prevArch, prevSig) {
+  const t = prevArch && L.tournaments[prevArch];
+  if (!t || t.deleted) return;
+  if (!T.ended) { deleteTournament(prevArch); return; }
+  if (T.archivedId !== prevArch || resultsSig() === prevSig || !T.players.every(p => p.leagueId && resolvePlayer(p.leagueId))) return;
+  try { archiveTournament(); save(); } catch (e) { console.error(e); }
 }
 // Sostituisce il torneo locale con lo stato condiviso
 function liveLoadState(d) {
@@ -224,7 +259,8 @@ function liveAdopt(d) {
   const me = deviceId(), cur = live.data && live.data.id === d.id ? live.data : null;
   liveLoadState(d);
   if (cur) for (const [k, v] of Object.entries(cur.acks || {})) T.acks[k] = Math.max(T.acks[k] || 0, v);
-  SH = { tid: d.id, rev: cur ? live.rev : null, seq: T.acks[me] || 0, pending: [], detached: false }; saveSh();
+  // Non è quello in diretta (ripristino): chi ripristina è stato avvisato che sostituisce il torneo in diretta
+  SH = { tid: d.id, rev: cur ? live.rev : null, seq: T.acks[me] || 0, pending: [], detached: false, replaces: cur ? null : (live.data && live.data.id) || null }; saveSh();
   if (syncCfg.live === false) { syncCfg.live = true; saveSyncCfg(); }
 }
 // Unirsi al torneo in diretta di un altro telefono e gestirlo insieme
@@ -239,8 +275,9 @@ function liveJoin() {
     showStartedTournament(); switchTab('round');
     toast('Ora gestisci il torneo anche da questo telefono');
   };
-  const replaces = T.started ? !T.ended && T.id !== d.id : T.players.length > 0;
-  if (replaces) showModal('Unirti al torneo?', T.started ? 'Il torneo in corso su questo telefono verrà sostituito.' : 'I giocatori inseriti su questo telefono verranno sostituiti.', go);
+  // Un torneo concluso ma non salvato nello storico andrebbe perso: si chiede anche per quello
+  const replaces = T.started ? T.id !== d.id && (!T.ended || !T.archivedId) : T.players.length > 0;
+  if (replaces) showModal('Unirti al torneo?', !T.started ? 'I giocatori inseriti su questo telefono verranno sostituiti.' : T.ended ? 'Il torneo concluso su questo telefono non è salvato nello storico della lega e verrà sostituito.' : 'Il torneo in corso su questo telefono verrà sostituito.', go);
   else go();
 }
 // Un altro telefono ha un torneo in corso in diretta (avviso prima di avviarne uno nuovo)

@@ -142,7 +142,8 @@ function archiveTournament() {
   const t = {
     // Stesso id del torneo: se lo archiviano due telefoni che lo gestivano insieme resta un solo documento
     id: T.id || uid('t'), date: isoDate(now), season: String(now.getFullYear()),
-    set: T.set || '', mode: T.mode, totalRounds: T.totalRounds, createdAt: Date.now(),
+    // Rifatto dopo un riallineamento (liveFixArchive): resta al suo posto tra i tornei della stessa data
+    set: T.set || '', mode: T.mode, totalRounds: T.totalRounds, createdAt: (T.id && L.tournaments[T.id] && L.tournaments[T.id].createdAt) || Date.now(),
     entrants: T.players.map(p => map[p.id]),
     names: Object.fromEntries(T.players.map(p => [map[p.id], p.name])),
     dropped: T.players.filter(p => p.dropped).map(p => map[p.id]),
