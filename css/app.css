@@ -897,3 +897,14 @@ button.ach:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px
 
 /* Tavolo: "Inizia torneo" resta in vista sopra la barra in basso mentre si scorre tavolo e accoppiamenti */
 #startBtn { position: sticky; bottom: calc(74px + env(safe-area-inset-bottom, 0px)); z-index: 5; box-shadow: var(--shadow-lg); }
+/* Diretta: lo stato del timer scritto per esteso (il simbolo ⏸ accanto alle cifre si leggeva "II") */
+.live-timer-row { display: flex; align-items: baseline; gap: 10px; }
+.live-timer-paused { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--warm); background: var(--warm-light); padding: 3px 8px; border-radius: 100px; }
+/* keepActiveInView misura offsetLeft rispetto alla fila */
+.league-tabs, .h2h-picks { position: relative; }
+.link-btn.danger { color: var(--red); }
+/* Righe chiave-valore toccabili (rivalità nel profilo) */
+.kv-btn { width: 100%; background: none; border: none; border-bottom: 1px solid var(--border); font-family: inherit; color: var(--text); text-align: left; cursor: pointer; }
+.kv-btn:active { background: var(--bg-input); }
+.kv-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.kv-btn .history-chev { font-size: 1rem; margin-left: 4px; }

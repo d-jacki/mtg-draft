@@ -48,6 +48,16 @@ function renderLeague() {
   h += `<div class="card" id="syncBox"></div>`;
   C.innerHTML = h;
   renderSyncBox();
+  keepActiveInView(C);
+}
+// Le file orizzontali (tab della Lega, giocatori negli Scontri) ripartono dall'inizio a ogni ridisegno: il tab o il
+// giocatore scelto, se sta in fondo alla fila, finirebbe fuori dallo schermo
+function keepActiveInView(C) {
+  if (!C || !C.querySelectorAll) return;
+  C.querySelectorAll('.league-tabs, .h2h-picks').forEach(row => {
+    const a = row.querySelector('.active');
+    if (a && a.offsetLeft + a.offsetWidth > row.clientWidth) row.scrollLeft = a.offsetLeft + a.offsetWidth - row.clientWidth + 16;
+  });
 }
 
 function renderChampionship() {
@@ -141,6 +151,7 @@ function openH2HDetail(a, b) {
   };
   showModalCustom(`${leagueName(a)} contro ${leagueName(b)}`, `${r.w} vint${r.w === 1 ? 'o' : 'i'}, ${r.l} pers${r.l === 1 ? 'o' : 'i'}${r.d ? `, ${r.d} patt${r.d === 1 ? 'a' : 'e'}` : ''} per ${leagueName(a)}.`,
     `<div class="hist-list">${ms.map(row).join('')}</div>
+    ${LUI.profile === b ? '' : `<button class="link-btn" onclick="closeModal();openProfile('${b}')">Profilo di ${esc(leagueName(b))} →</button>`}
     <div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="openH2HDetail('${b}','${a}')">Dal lato di ${esc(leagueName(b).split(' ')[0])}</button><button class="btn btn-secondary btn-sm" onclick="closeModal()">Chiudi</button></div>`);
 }
 function renderH2HMatrix(ids) {
@@ -234,9 +245,13 @@ function renderColorStats(s) {
 function renderRivals(id, s) {
   const opps = Object.entries(s.opponents).map(([o, r]) => ({ id: o, ...r, n: r.w + r.l + r.d })).sort((a, b) => b.n - a.n || (b.w - b.l) - (a.w - a.l));
   if (!opps.length) return '';
-  const big = (label, o, emoji) => o ? `<button class="rival-card" onclick="openProfile('${o.id}')"><div class="text-xs text-dim">${emoji} ${label}</div><div class="rival-name">${leagueEmoji(o.id)} ${esc(leagueName(o.id))}</div><div class="text-sm"><b>${o.w}–${o.l}${o.d ? '–' + o.d : ''}</b></div></button>` : `<div class="rival-card empty"><div class="text-xs text-dim">${emoji} ${label}</div><div class="text-xs text-dim mt">Servono almeno 3 match contro qualcuno</div></div>`;
-  return `<div class="card"><div class="card-title">Rivalità</div><div class="rival-grid">${big('Nemesi', s.nemesis, '💀')}${big('Vittima preferita', s.victim, '🎯')}</div>
-    ${opps.map(o => `<div class="kv" onclick="openProfile('${o.id}')" style="cursor:pointer;"><span>${whoHtml(o.id)}</span><b>${o.w}–${o.l}${o.d ? '–' + o.d : ''}</b></div>`).join('')}</div>`;
+  // Senza nemesi (o vittima) il motivo può essere che mancano i 3 match, o che nessuno ha il saldo dalla parte giusta
+  const enough = opps.some(o => o.n >= 3);
+  const none = { nemesis: 'Nessuno ti ha battuto più volte di quante l\'hai battuto tu', victim: 'Nessuno che hai battuto più volte di quante ti abbia battuto' };
+  const big = (label, o, emoji, k) => o ? `<button class="rival-card" onclick="openH2HDetail('${id}','${o.id}')"><div class="text-xs text-dim">${emoji} ${label}</div><div class="rival-name">${leagueEmoji(o.id)} ${esc(leagueName(o.id))}</div><div class="text-sm"><b>${o.w}–${o.l}${o.d ? '–' + o.d : ''}</b></div></button>` : `<div class="rival-card empty"><div class="text-xs text-dim">${emoji} ${label}</div><div class="text-xs text-dim mt">${enough ? none[k] + ' (almeno 3 match)' : 'Servono almeno 3 match contro qualcuno'}</div></div>`;
+  return `<div class="card"><div class="card-title">Rivalità</div><div class="rival-grid">${big('Nemesi', s.nemesis, '💀', 'nemesis')}${big('Vittima preferita', s.victim, '🎯', 'victim')}</div>
+    ${opps.map(o => `<button class="kv kv-btn" onclick="openH2HDetail('${id}','${o.id}')"><span>${whoHtml(o.id)}</span><b>${o.w}–${o.l}${o.d ? '–' + o.d : ''} <span class="history-chev" aria-hidden="true">›</span></b></button>`).join('')}
+    <div class="text-xs text-dim mt">Tocca un avversario per i match tra voi.</div></div>`;
 }
 function goalBar(g) { const v = Math.round(g.ratio * 100); return `<span class="goal-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${v}" aria-label="${g.name}: ${g.cur} su ${g.goal} ${g.unit}"><i style="width:${v}%"></i></span>`; }
 // Le medaglie più vicine, con quanto manca
@@ -258,7 +273,11 @@ function achTile(s, a, prog, pid) {
 }
 function renderAchievements(s, pid) {
   const prog = achievementProgress(s), got = ACHIEVEMENTS.filter(a => s.achievements[a.id]).length;
-  return `<div class="card"><div class="card-title">Achievement <span class="text-xs text-dim" style="font-family:inherit;font-weight:600;">${got}/${ACHIEVEMENTS.length}</span></div><div class="ach-grid">${ACHIEVEMENTS.map(a => achTile(s, a, prog, pid)).join('')}</div><div class="text-xs text-dim mt">Tocca una medaglia per i dettagli.</div></div>`;
+  // Prima quelle conquistate, poi quelle avviate, poi le altre e in fondo le segrete: con 35 medaglie le proprie
+  // non devono perdersi in mezzo alla griglia (a parità resta l'ordine di ACHIEVEMENTS)
+  const rank = a => s.achievements[a.id] ? 0 : prog[a.id] && prog[a.id].ratio > 0 ? 1 : a.secret ? 3 : 2;
+  const list = ACHIEVEMENTS.map((a, i) => [a, i]).sort((x, y) => rank(x[0]) - rank(y[0]) || x[1] - y[1]).map(x => x[0]);
+  return `<div class="card"><div class="card-title">Achievement <span class="text-xs text-dim" style="font-family:inherit;font-weight:600;">${got}/${ACHIEVEMENTS.length}</span></div><div class="ach-grid">${list.map(a => achTile(s, a, prog, pid)).join('')}</div><div class="text-xs text-dim mt">Tocca una medaglia per i dettagli.</div></div>`;
 }
 // Dettaglio medaglia: cosa serve, quando e in quale torneo l'hai presa, i livelli e quanto manca al prossimo
 function openAch(pid, aid) {
@@ -309,7 +328,8 @@ function openTournament(tid) {
     <button class="btn btn-secondary btn-sm mt" style="width:100%;" onclick="openDeckEditor('${t.id}')">🎨 ${nDecks ? 'Modifica mazzi' : 'Segna i mazzi'} (${nDecks}/${ranked.length})</button>
     <div class="mt">${rounds}</div>
     <div class="mt"><label class="field-label" for="tdSet">Set / cube</label><div style="display:flex;gap:8px;"><input type="text" id="tdSet" value="${esc(t.set || '')}" maxlength="40"><button class="btn btn-secondary btn-sm" style="width:auto;" onclick="saveTournamentSet('${t.id}')">Salva</button></div></div>
-    <div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="closeModal()">Chiudi</button><button class="btn btn-danger btn-sm" onclick="confirmDeleteTournament('${t.id}')">Elimina</button></div>`);
+    <button class="btn btn-secondary mt" onclick="closeModal()">Chiudi</button>
+    <div class="text-center"><button class="link-btn danger" onclick="confirmDeleteTournament('${t.id}')">Elimina torneo…</button></div>`);
 }
 function saveTournamentSet(tid) { updateTournament(tid, { set: $id('tdSet').value.trim() }); closeModal(); renderLeague(); toast('Torneo aggiornato'); }
 function confirmDeleteTournament(tid) {

@@ -466,7 +466,7 @@ function liveTimerText(d) {
   if (!t || d.mode === 'roundrobin' || d.ended) return '';
   const secs = t.running && t.startedAt ? Math.floor((clockNow() - t.startedAt) / 1000) : t.seconds || 0;
   const rem = t.total - secs, m = Math.floor(Math.abs(rem) / 60), s = Math.abs(rem) % 60;
-  return `${rem < 0 ? '+' : ''}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}${t.running ? '' : ' ⏸'}`;
+  return `${rem < 0 ? '+' : ''}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 function liveMe() { try { return localStorage.getItem(ME_KEY) || ''; } catch (e) { return ''; } }
 function setLiveMe(name) { try { localStorage.setItem(ME_KEY, name); } catch (e) {} renderLiveUI(); }
@@ -488,7 +488,7 @@ function renderLiveView() {
       <div class="card live-head"><div class="live-head-row"><span class="live-dot" aria-hidden="true"></span><span class="live-kicker">${d.ended ? 'Concluso' : 'In diretta'}</span><span class="text-xs text-dim" style="margin-left:auto;">agg. ${updated}</span></div>
       <div class="live-title">${d.ended ? 'Classifica finale' : `Round ${d.currentRound} <span>/ ${d.totalRounds}</span>`}</div>
       <div class="text-xs text-dim">${isRR ? 'Round robin BO1' : 'Swiss'}${d.set ? ' · ' + esc(d.set) : ''} · ${d.players.length} giocatori</div>
-      ${!d.ended && !isRR ? `<div class="live-timer" id="liveTimer" aria-label="Tempo del round">${liveTimerText(d)}</div>` : ''}
+      ${!d.ended && !isRR ? `<div class="live-timer-row"><div class="live-timer" id="liveTimer" aria-label="Tempo del round">${liveTimerText(d)}</div>${d.timer && !d.timer.running ? '<span class="live-timer-paused">in pausa</span>' : ''}</div>` : ''}
       ${syncCanWrite() && d.id && !d.ended ? `<button class="btn btn-primary btn-sm mt" onclick="liveJoin()">✏️ Gestisci anche tu</button><div class="text-xs text-dim mt">Inserisci risultati, round e timer da questo telefono insieme agli altri.</div>` : ''}</div>`;
     // "Io sono…": evidenzia il proprio tavolo
     h += `<div class="card"><label class="field-label" for="liveMeSel">Io sono</label><select id="liveMeSel" onchange="setLiveMe(this.value)"><option value="">Scegli il tuo nome…</option>${d.players.map(p => `<option value="${esc(p.name)}"${p.name.toLowerCase() === me ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`;

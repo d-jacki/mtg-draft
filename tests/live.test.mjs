@@ -105,7 +105,11 @@ function tournament() {
   check('segui: bye riconosciuto', app.renderLiveView().includes('Hai il bye'));
   const t = app.liveTimerText({ ...snap, timer: { total: 3000, running: true, seconds: 0, startedAt: Date.now() - 60500 } });
   check('segui: timer calcolato dall\'inizio assoluto', t === '49:00', t);
-  check('segui: timer in pausa', app.liveTimerText({ ...snap, timer: { total: 3000, running: false, seconds: 3060, startedAt: null } }) === '+01:00 ⏸');
+  const running = S.live.data;
+  check('segui: timer che corre senza "in pausa"', !/in pausa/.test(app.renderLiveView()));
+  S.live.data = { ...running, timer: { total: 3000, running: false, seconds: 3060, startedAt: null } };
+  check('segui: timer in pausa scritto per esteso', app.liveTimerText(S.live.data) === '+01:00' && /live-timer-paused">in pausa/.test(app.renderLiveView()));
+  S.live.data = running;
   S.LUI.live = false;
 }
 

@@ -378,6 +378,14 @@ function archived(date, entrants, final, rounds, extra = {}) {
   app.openH2HDetail(b, a);
   check('scontri: dettaglio dal lato dell\'altro', /0 vinti, 9 persi per Debole/.test(sandbox.document.getElementById('modalText').textContent) && /0–2/.test(sandbox.document.getElementById('modalBody').innerHTML));
   app.closeModal(); sandbox.localStorage.removeItem('mtg-me'); S.LUI.h2h = null;
+
+  // Profilo: rivalità che portano ai match, motivo giusto quando manca la nemesi, medaglie conquistate per prime
+  const riv = app.renderRivals(a, app.playerStats(a));
+  check('profilo: senza nemesi ma con 3+ match il motivo è il saldo, non i match mancanti', /Nessuno ti ha battuto più volte/.test(riv) && !/Servono almeno 3 match/.test(riv));
+  check('profilo: le rivalità aprono i match tra i due', riv.includes(`openH2HDetail('${a}','${b}')`));
+  const ach = app.renderAchievements(app.playerStats(a), a), tiles = ach.split('<button class="ach').slice(1);
+  const firstLocked = tiles.findIndex(x => x.startsWith(' locked'));
+  check('profilo: medaglie conquistate prima delle altre', firstLocked > 0 && tiles.slice(firstLocked).every(x => x.startsWith(' locked')));
 }
 
 // ── 13. Smoke test del rendering di tutte le viste ──
