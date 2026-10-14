@@ -427,3 +427,28 @@ function archived(date, entrants, final, rounds, extra = {}) {
   check('live: l\'inizio del torneo viaggia con lo stato condiviso', app.liveSnapshot().startedAt === S.T.startedAt);
   S.T.startedAt = null;
 }
+
+// ── 17. ID e 0–0–1 giocato: Lumaca solo per il pareggio giocato, Diplomatico solo per l'ID ──
+{
+  resetLeague();
+  const [a, b, c, d, e, f] = players('A', 'B', 'C', 'D', 'E', 'F');
+  archived('2026-12-01', [a, b, c, d, e, f], [a, b, c, d, e, f], [[[a, b, 0, 0, 1], [c, d, 0, 0, 1], [e, f, 0, 0, 1]]]);
+  const t = Object.values(S.L.tournaments)[0];
+  t.rounds[0][0].id = false; t.rounds[0][1].id = true; // il terzo è un risultato vecchio, senza segno
+  app.saveLeague(true);
+  const st = id => app.playerStats(id);
+  check('Lumaca: 0–0–1 giocato (una partita finita in patta) la dà', !!st(a).achievements.snail && st(a).ids === 0);
+  check('Lumaca: l\'ID no, e conta per il Diplomatico', !st(c).achievements.snail && st(c).ids === 1);
+  check('ID: i risultati 0–0–1 salvati prima del segno restano ID', !st(e).achievements.snail && st(e).ids === 1);
+  // Nel torneo: il pulsante ID e lo 0–0–1 di "Altri risultati" ora si distinguono
+  reset(['P1', 'P2', 'P3', 'P4']);
+  S.T.rounds = [{ pairings: [app.mkM(1, 2), app.mkM(3, 4)] }];
+  app.setRes(0, 0, 0, 0, 1, true); app.setRes(0, 1, 0, 0, 1);
+  const [m1, m2] = S.T.rounds[0].pairings;
+  check('torneo: pulsante ID → segnato come ID', m1.id === true && app.fmtRes(m1) === 'ID (patta)');
+  check('torneo: 0–0–1 da "Altri risultati" → partita giocata', m2.id === false && app.fmtRes(m2) === '0 – 0 – 1');
+  check('torneo: il segno ID viaggia con il torneo condiviso', app.liveSnapshot().rounds[0].pairings[0].id === true && app.validLiveState(app.liveSnapshot()));
+  S.T.ended = true; S.T.archivedId = null; S.T.id = 't_idtest';
+  app.archiveCurrent();
+  check('archivio: il segno ID resta nello storico', S.L.tournaments.t_idtest.rounds[0][0].id === true && S.L.tournaments.t_idtest.rounds[0][1].id === false && app.validTournamentDoc(S.L.tournaments.t_idtest));
+}

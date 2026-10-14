@@ -24,8 +24,12 @@ const isStr = s => typeof s === 'string';
 const isScore = n => Number.isInteger(n) && n >= 0 && n <= 9;
 function validMatch(m, isId) {
   return !!m && typeof m === 'object' && isId(m.p1) && (m.p2 == null || isId(m.p2))
-    && (m.p1wins == null || isScore(m.p1wins)) && (m.p2wins == null || isScore(m.p2wins)) && (m.draws == null || isScore(m.draws));
+    && (m.p1wins == null || isScore(m.p1wins)) && (m.p2wins == null || isScore(m.p2wins)) && (m.draws == null || isScore(m.draws))
+    && (m.id == null || typeof m.id === 'boolean');
 }
+// Patta intenzionale: 0–0 con patte. Dal pulsante ID il match porta id: true, uno 0–0–1 giocato (una partita finita
+// in patta) id: false. I risultati salvati prima che esistesse il segno (id assente) contano come ID, come allora.
+function isIdMatch(m) { return m.p1wins === 0 && m.p2wins === 0 && m.draws > 0 && m.id !== false; }
 function validPlayerDoc(p) {
   return safeId(p.id) && isStr(p.name) && (p.emoji == null || isStr(p.emoji)) && (p.mergedInto == null || safeId(p.mergedInto));
 }
@@ -145,7 +149,7 @@ function archiveTournament() {
     final: st.map(p => map[p.id]),
     rounds: T.rounds.map(r => r.pairings.map(m => ({
       p1: map[m.p1], p2: m.p2 ? map[m.p2] : null, p1wins: m.p1wins, p2wins: m.p2wins, draws: m.draws || 0,
-      bye: !!m.bye, rest: !!m.rest, forfeit: !!m.forfeit,
+      bye: !!m.bye, rest: !!m.rest, forfeit: !!m.forfeit, ...(typeof m.id === 'boolean' ? { id: m.id } : {}),
     }))),
     decks,
   };
@@ -264,9 +268,10 @@ function leagueStats() {
         if (prevChampion && res === 1 && b === prevChampion) unlock(sa, 'regicide', t);
         if (prevChampion && res === 0 && a === prevChampion) unlock(sb, 'regicide', t);
         for (const s of [sa, sb]) if (Math.round(s.elo) >= 1700) unlock(s, 'elo1700', t);
-        const isID = m.p1wins === 0 && m.p2wins === 0 && m.draws > 0;
+        const isID = isIdMatch(m);
         if (isID) { sa.ids++; sb.ids++; }
-        if (res === 0.5 && m.p1wins + m.p2wins > 0) { unlock(sa, 'snail', t); unlock(sb, 'snail', t); }
+        // Lumaca: pareggio giocato (1–1, 1–1–1, 0–0–1...), non un ID
+        if (res === 0.5 && !isID) { unlock(sa, 'snail', t); unlock(sb, 'snail', t); }
         sa.gW += m.p1wins; sa.gL += m.p2wins; sa.gD += m.draws; sb.gW += m.p2wins; sb.gL += m.p1wins; sb.gD += m.draws;
         for (const [s, p, opp, r, mine, theirs, col] of [[sa, pa, b, res, m.p1wins, m.p2wins, decks[a]], [sb, pb, a, 1 - res, m.p2wins, m.p1wins, decks[b]]]) {
           const o = s.opponents[opp] || (s.opponents[opp] = { w: 0, l: 0, d: 0, last: null, lossStreak: 0 });

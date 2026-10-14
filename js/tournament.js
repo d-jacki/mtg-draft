@@ -378,7 +378,7 @@ function applyOp(op){
       if(!m||m.p1!==op.p1||m.p2!==op.p2||m.bye||m.rest)return false;
       // Swiss: solo il round in corso, salvo correzione di un round chiuso in modalità master (force)
       if(T.mode!=='roundrobin'&&op.r!==T.currentRound-1&&!(op.force&&op.r<T.currentRound))return false;
-      m.p1wins=op.w1;m.p2wins=op.w2;m.draws=op.d;if(op.w1==null)m.forfeit=false;return true;
+      m.p1wins=op.w1;m.p2wins=op.w2;m.draws=op.d;if(op.w1==null)m.forfeit=false;if(op.w1!=null&&typeof op.id==='boolean')m.id=op.id;else delete m.id;return true;
     }
     case 'drop':{
       const pid=op.pid,p=P(pid);if(!p||p.dropped)return false;
@@ -414,7 +414,7 @@ function applyOp(op){
 function opNote(op){
   const n=pid=>shortName(pid);
   switch(op.t){
-    case 'res':return op.w1==null?`R${op.r+1} · ${n(op.p1)} vs ${n(op.p2)}: risultato tolto`:T.mode==='roundrobin'?`R${op.r+1} · vince ${n(op.w1>op.w2?op.p1:op.p2)} (vs ${n(op.w1>op.w2?op.p2:op.p1)})`:`R${op.r+1} · ${n(op.p1)} ${op.w1}–${op.w2}${op.d?'–'+op.d:''} ${n(op.p2)}${op.force?' (correzione)':''}`;
+    case 'res':return op.w1==null?`R${op.r+1} · ${n(op.p1)} vs ${n(op.p2)}: risultato tolto`:T.mode==='roundrobin'?`R${op.r+1} · vince ${n(op.w1>op.w2?op.p1:op.p2)} (vs ${n(op.w1>op.w2?op.p2:op.p1)})`:`R${op.r+1} · ${n(op.p1)} ${op.id?'ID':`${op.w1}–${op.w2}${op.d?'–'+op.d:''}`} ${n(op.p2)}${op.force?' (correzione)':''}`;
     case 'drop':return `${n(op.pid)} ritirato`;
     case 'next':return op.from===0?'Torneo avviato':`Round ${op.from+1} generato`;
     case 'undo':return `Round ${op.from} annullato`;
@@ -497,15 +497,15 @@ function swissBtns(idx,m){const n1=shortName(m.p1),n2=shortName(m.p2);
   const more=[[1,0,0,'1–0'],[0,1,0,'0–1'],[1,1,0,'1–1'],[1,0,1,'1–0–1'],[0,1,1,'0–1–1'],[2,0,1,'2–0–1'],[0,2,1,'0–2–1'],[1,1,1,'1–1–1'],[0,0,1,'0–0–1']];
   const mkBtn=s=>`<button class="score-btn" onclick="setRes(${viewingRound-1},${idx},${s[0]},${s[1]},${s[2]})">${s[3]}</button>`;
   return `<div style="padding:4px 16px;font-size:0.72rem;color:var(--text-dim);text-align:center;font-weight:600;">${esc(n1)} — ${esc(n2)}</div>`
-    +`<div class="match-score-btns main">${main.map(mkBtn).join('')}<button class="score-btn draw-btn" onclick="setRes(${viewingRound-1},${idx},0,0,1)" title="Pareggio intenzionale (0 partite giocate, 1 punto a testa)">ID</button></div>`
+    +`<div class="match-score-btns main">${main.map(mkBtn).join('')}<button class="score-btn draw-btn" onclick="setRes(${viewingRound-1},${idx},0,0,1,true)" title="Pareggio intenzionale (0 partite giocate, 1 punto a testa)">ID</button></div>`
     +`<details class="more-results"><summary aria-label="Mostra altri risultati per fine tempo">Altri risultati…<button class="score-info-btn" type="button" aria-label="Cosa significano i numeri?" onclick="event.preventDefault();event.stopPropagation();showScoreInfo();">?</button></summary><div class="match-score-btns">${more.map(mkBtn).join('')}</div></details>`;}
 function rrBtns(idx,m){const n1=shortName(m.p1),n2=shortName(m.p2);
   return `<div class="match-score-btns"><button class="score-btn win-btn" onclick="setRes(${viewingRound-1},${idx},1,0,0)">${esc(n1)}</button><button class="score-btn win-btn" onclick="setRes(${viewingRound-1},${idx},0,1,0)">${esc(n2)}</button></div>`;}
 
 // Restituisce HTML (va in innerHTML): i nomi passano da esc()
-function fmtRes(m){if(m.bye)return'BYE';if(m.rest)return'Riposo';if(m.p1wins==null)return'—';const winner=()=>esc(shortName(m.p1wins>m.p2wins?m.p1:m.p2));if(m.forfeit)return`${winner()} (forfeit)`;if(T.mode==='roundrobin')return`${winner()} vince`;if(m.p1wins===0&&m.p2wins===0&&m.draws>0)return'ID (patta)';return m.draws>0?`${m.p1wins} – ${m.p2wins} – ${m.draws}`:`${m.p1wins} – ${m.p2wins}`;}
+function fmtRes(m){if(m.bye)return'BYE';if(m.rest)return'Riposo';if(m.p1wins==null)return'—';const winner=()=>esc(shortName(m.p1wins>m.p2wins?m.p1:m.p2));if(m.forfeit)return`${winner()} (forfeit)`;if(T.mode==='roundrobin')return`${winner()} vince`;if(isIdMatch(m))return'ID (patta)';return m.draws>0?`${m.p1wins} – ${m.p2wins} – ${m.draws}`:`${m.p1wins} – ${m.p2wins}`;}
 
-function setRes(ri,mi,w1,w2,d){const r=T.rounds[ri],m=r&&r.pairings[mi],force=T.mode!=='roundrobin'&&ri<T.currentRound-1;if(!m||!doOp({t:'res',r:ri,m:mi,p1:m.p1,p2:m.p2,w1,w2,d,force}))return;lastScoredMatch=mi;vibrate(50);renderRound();renderStandings();save();if(checkUpset(m)){toast('💥 Colpaccio!');celebrate();}else toast('Risultato salvato');}
+function setRes(ri,mi,w1,w2,d,isId){const r=T.rounds[ri],m=r&&r.pairings[mi],force=T.mode!=='roundrobin'&&ri<T.currentRound-1;if(!m||!doOp({t:'res',r:ri,m:mi,p1:m.p1,p2:m.p2,w1,w2,d,id:!!isId,force}))return;lastScoredMatch=mi;vibrate(50);renderRound();renderStandings();save();if(checkUpset(m)){toast('💥 Colpaccio!');celebrate();}else toast('Risultato salvato');}
 function editMatch(ri,mi){const m=T.rounds[ri].pairings[mi],p1=m.p1,p2=m.p2,force=T.mode!=='roundrobin'&&ri<T.currentRound-1;showModal('Modificare risultato?',force?'Round già chiuso: cambiano classifica e tiebreaker, ma i pairing dei round successivi restano quelli già fatti.':'Il risultato verrà resettato.',()=>{if(!doOp({t:'res',r:ri,m:mi,p1,p2,w1:null,w2:null,d:0,force})){toast(opRejectedMsg({t:'res'}));return;}renderRound();renderStandings();save();});}
 function showScoreInfo(){
   showModalCustom('Sistema punteggio MTG','Formato: V – S – P (Best of 3)',
@@ -519,13 +519,14 @@ function showScoreInfo(){
         <li>Danno letale simultaneo</li>
         <li>Patta intenzionale di un singolo game</li>
       </ul>
+      <p style="margin:0 0 12px;padding:10px 12px;border-radius:8px;background:var(--accent-light);color:var(--accent-dark);">Tempo scaduto sull'1 a 1 e la terza partita finisce ai turni senza un vincitore: segna <b>1–1–1</b> (in <i>Altri risultati</i>), non 1–1 e non ID.</p>
       <p style="margin:0 0 6px;font-weight:700;color:var(--text);">Esempi tipici:</p>
       <ul style="margin:0 0 12px;padding-left:20px;">
         <li><b>1–0</b> → giocata 1 sola partita, vinta dal 1°</li>
         <li><b>1–0–1</b> → 1° vince gara 1, gara 2 in patta</li>
         <li><b>1–1–1</b> → 1 vittoria a testa + 1 patta → match patta</li>
         <li><b>0–0–1</b> → solo 1 partita giocata e pattata</li>
-        <li><b>ID</b> → patta intenzionale dell'intero match (0 partite)</li>
+        <li><b>ID</b> → patta concordata senza giocare il match (0 partite)</li>
       </ul>
       <p style="margin:0;font-size:0.78rem;color:var(--text-dim);">Le patte di game contano per il GW% (tiebreaker della classifica), quindi vanno sempre registrate correttamente.</p>
     </div>

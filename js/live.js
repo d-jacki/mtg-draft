@@ -80,7 +80,7 @@ function liveSnapshot() {
     started: T.started, ended: T.ended, mode: T.mode, set: T.set || '',
     totalRounds: T.totalRounds, currentRound: T.currentRound, draftOrder: (T.draftOrder || []).slice(),
     players: T.players.map(p => ({ id: p.id, name: p.name, leagueId: p.leagueId || null, dropped: !!p.dropped, droppedAtRound: p.droppedAtRound || null })),
-    rounds: T.rounds.map(r => ({ locked: !!r.locked, pairings: r.pairings.map(m => ({ p1: m.p1, p2: m.p2, p1wins: m.p1wins, p2wins: m.p2wins, draws: m.draws || 0, bye: !!m.bye, rest: !!m.rest, forfeit: !!m.forfeit })) })),
+    rounds: T.rounds.map(r => ({ locked: !!r.locked, pairings: r.pairings.map(m => ({ p1: m.p1, p2: m.p2, p1wins: m.p1wins, p2wins: m.p2wins, draws: m.draws || 0, bye: !!m.bye, rest: !!m.rest, forfeit: !!m.forfeit, ...(typeof m.id === 'boolean' ? { id: m.id } : {}) })) })),
     decks: { ...(T.decks || {}) }, archivedId: T.archivedId || null, startedAt: T.startedAt || null,
     timer: { total: TM.total, running: TM.running, seconds: TM.seconds, startedAt: TM.running ? TM.startedAt : null },
   };
