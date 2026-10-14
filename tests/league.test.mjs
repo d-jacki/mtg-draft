@@ -346,6 +346,10 @@ function archived(date, entrants, final, rounds, extra = {}) {
   app.toggleDeck(app.deckTargetFor(tid), lid2, 'R');
   check('mazzo: torneo vecchio modificato solo nello storico', S.L.tournaments[tid].decks[lid2] === 'RG' && S.T.decks[2] === 'G');
   S.T.archivedId = tid;
+  // Mazzo cambiato su un altro telefono (arriva nel torneo live): lo storico si aggiorna anche qui
+  const prev = { ...S.T.decks }; S.T.decks[3] = 'BG';
+  app.archiveDeckChanges(prev);
+  check('mazzo: modifica arrivata da un altro telefono riportata nello storico', S.L.tournaments[tid].decks[S.T.players[2].leagueId] === 'BG' && S.L.tournaments[tid].decks[lid2] === 'RG');
   check('mazzo: i colori compaiono accanto ai nomi in classifica e nei match', (app.renderStandings(), /pips-sm/.test(sandbox.document.getElementById('standingsContent').innerHTML)) && /pip-G/.test(app.matchDeck(2)));
 }
 
@@ -407,4 +411,19 @@ function archived(date, entrants, final, rounds, extra = {}) {
   const a = archiveOn(), b = archiveOn(); // il secondo telefono non ha ancora ricevuto i profili del primo
   check('archivio condiviso: stessi id per i giocatori nuovi su entrambi i telefoni', a.every(Boolean) && JSON.stringify(a) === JSON.stringify(b), JSON.stringify([a, b]));
   check('archivio condiviso: id validi per il sync', a.every(id => app.validPlayerDoc(S.L.players[id])));
+}
+
+// ── 16. Draft finito dopo mezzanotte: la data è quella in cui è iniziato ──
+{
+  resetLeague();
+  reset(['A', 'B', 'C', 'D']);
+  S.T.id = 't_notte';
+  S.T.rounds = [{ pairings: [match(1, 2, 2, 0), match(3, 4, 2, 0)] }];
+  S.T.ended = true; S.T.archivedId = null;
+  S.T.startedAt = new Date(2025, 11, 31, 21, 0).getTime(); // 31 dicembre, finito dopo mezzanotte
+  app.archiveCurrent();
+  const t = S.L.tournaments.t_notte;
+  check('archivio: data e stagione dall\'inizio del torneo', t.date === '2025-12-31' && t.season === '2025', JSON.stringify([t.date, t.season]));
+  check('live: l\'inizio del torneo viaggia con lo stato condiviso', app.liveSnapshot().startedAt === S.T.startedAt);
+  S.T.startedAt = null;
 }

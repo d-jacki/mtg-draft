@@ -1,7 +1,7 @@
 // Torneo: stato, setup, tavolo, pairing, punteggi, timer, round, classifica, navigazione.
 
 // id: identifica il torneo tra i telefoni (live condiviso e archivio); acks: ultima operazione di ogni telefono inclusa nello stato
-const T = { id: null, players: [], draftOrder: [], rounds: [], started: false, ended: false, totalRounds: 0, currentRound: 0, mode: 'swiss', set: '', decks: {}, archivedId: null, acks: {} };
+const T = { id: null, players: [], draftOrder: [], rounds: [], started: false, ended: false, totalRounds: 0, currentRound: 0, mode: 'swiss', set: '', decks: {}, archivedId: null, acks: {}, startedAt: null };
 let viewingRound = 1, playerIdCounter = 0, lastScoredMatch = -1, expandedPlayer = null;
 const TM = { running: false, seconds: 0, total: 50 * 60, interval: null, startedAt: null, firedWarning: false, firedExpired: false, firedOvertime: false };
 
@@ -228,7 +228,7 @@ function handleStart(force) {
 function captureSetName() { const el = $id('setNameInp'); if (el) T.set = el.value.trim(); }
 function startWithMode(mode, rounds, timerMin) {
   syncDraftOrder();
-  T.id = uid('t'); T.acks = {}; T.archivedId = null;
+  T.id = uid('t'); T.acks = {}; T.archivedId = null; T.startedAt = Date.now();
   T.mode = mode; T.started = true; T.ended = false; T.rounds = []; T.currentRound = 0;
   if (mode === 'swiss') { T.totalRounds = rounds || Math.ceil(Math.log2(T.players.length)); TM.total = (timerMin || 50) * 60; }
   else { T.totalRounds = T.players.length; generateAllRRRounds(); }

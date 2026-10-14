@@ -81,7 +81,7 @@ function liveSnapshot() {
     totalRounds: T.totalRounds, currentRound: T.currentRound, draftOrder: (T.draftOrder || []).slice(),
     players: T.players.map(p => ({ id: p.id, name: p.name, leagueId: p.leagueId || null, dropped: !!p.dropped, droppedAtRound: p.droppedAtRound || null })),
     rounds: T.rounds.map(r => ({ locked: !!r.locked, pairings: r.pairings.map(m => ({ p1: m.p1, p2: m.p2, p1wins: m.p1wins, p2wins: m.p2wins, draws: m.draws || 0, bye: !!m.bye, rest: !!m.rest, forfeit: !!m.forfeit })) })),
-    decks: { ...(T.decks || {}) }, archivedId: T.archivedId || null,
+    decks: { ...(T.decks || {}) }, archivedId: T.archivedId || null, startedAt: T.startedAt || null,
     timer: { total: TM.total, running: TM.running, seconds: TM.seconds, startedAt: TM.running ? TM.startedAt : null },
   };
 }
@@ -176,7 +176,7 @@ function liveReconcile(d, rev) {
     sh.rev = rev; sh.pending = sh.pending.filter(op => op.seq > acked); saveSh();
     return;
   }
-  const prevRound = T.currentRound, wasEnded = T.ended, rejected = [];
+  const prevRound = T.currentRound, wasEnded = T.ended, prevDecks = { ...(T.decks || {}) }, rejected = [];
   liveLoadState(d);
   sh.rev = rev;
   sh.pending = sh.pending.filter(op => {
@@ -185,6 +185,7 @@ function liveReconcile(d, rev) {
     rejected.push(op); return false;
   });
   saveSh(); save();
+  archiveDeckChanges(prevDecks);
   liveRefreshTournament(prevRound, wasEnded);
   if (rejected.length) toast(opRejectedMsg(rejected[rejected.length - 1]));
   else if (sh.pending.some(op => op.regen)) toast('Un risultato è cambiato su un altro telefono: pairing del round ricalcolati');
@@ -198,7 +199,7 @@ function liveLoadState(d) {
     players: copy(d.players).map(p => ({ leagueId: null, droppedAtRound: null, ...p })),
     draftOrder: d.draftOrder ? d.draftOrder.slice() : d.players.map(p => p.id),
     rounds: copy(d.rounds).map(r => ({ locked: false, ...r })),
-    decks: { ...(d.decks || {}) }, archivedId: d.archivedId || null, acks: { ...(d.acks || {}) },
+    decks: { ...(d.decks || {}) }, archivedId: d.archivedId || null, startedAt: d.startedAt || null, acks: { ...(d.acks || {}) },
   });
   playerIdCounter = Math.max(playerIdCounter, ...T.players.map(p => p.id));
   const t = d.timer || {};
@@ -263,7 +264,7 @@ function validLiveState(d) {
     && Array.isArray(d.rounds) && d.rounds.every(r => r && Array.isArray(r.pairings) && r.pairings.every(m => validMatch(m, pid)))
     && (d.draftOrder == null || (Array.isArray(d.draftOrder) && d.draftOrder.every(pid)))
     && (d.decks == null || (typeof d.decks === 'object' && Object.values(d.decks).every(isStr)))
-    && (d.set == null || isStr(d.set)) && num(d.publishedAt)
+    && (d.set == null || isStr(d.set)) && num(d.publishedAt) && num(d.startedAt)
     && (d.timer == null || (typeof d.timer === 'object' && num(d.timer.total) && num(d.timer.seconds) && num(d.timer.startedAt)));
 }
 // Ordine degli aggiornamenti: revisione del server (updated_at per gli stati senza revisione)

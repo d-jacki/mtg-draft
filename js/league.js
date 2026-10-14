@@ -133,7 +133,8 @@ function archiveTournament() {
   const st = getSwissStandings();
   const decks = {};
   for (const [pid, colors] of Object.entries(T.decks || {})) if (map[pid] && colors) decks[map[pid]] = colors;
-  const now = new Date();
+  // Data del torneo = quando è iniziato: un draft che finisce dopo mezzanotte resta nella sua serata (e stagione)
+  const now = T.startedAt ? new Date(T.startedAt) : new Date();
   const t = {
     // Stesso id del torneo: se lo archiviano due telefoni che lo gestivano insieme resta un solo documento
     id: T.id || uid('t'), date: isoDate(now), season: String(now.getFullYear()),

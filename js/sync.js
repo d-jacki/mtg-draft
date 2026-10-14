@@ -36,7 +36,7 @@ function configureSync({ url, key, league, pin, name }) {
   if (!sameLeague) { L.dirty = leagueDocs().map(d => d.data.id); syncState.noSeq = false; }
   saveSyncCfg(); saveLeague(true);
 }
-function disconnectSync() { syncCfg = null; saveSyncCfg(); syncState.error = null; if (typeof stopLive === 'function') stopLive(); }
+function disconnectSync() { clearTimeout(_syncTimer); syncState.again = false; syncCfg = null; saveSyncCfg(); syncState.error = null; if (typeof stopLive === 'function') stopLive(); }
 function reconnectDefault() { const d = defaultLeague(); if (!d) return; configureSync({ url: d.url, key: d.key, league: d.league, pin: '', name: d.name }); }
 
 function sbHeaders() {
@@ -94,13 +94,18 @@ async function syncPush() {
   if (!syncCanWrite() || !L.dirty.length) return 0;
   const ids = L.dirty.slice();
   const docs = leagueDocs(ids).map(d => ({ id: d.data.id, kind: d.kind, data: d.data, updated_at: d.data.updatedAt }));
+  const sent = new Map(docs.map(d => [d.id, d.updated_at]));
   await sbRpc('league_push', { p_league: syncCfg.league, p_pin: syncCfg.pin, p_docs: docs });
-  // Tolgo dalla coda solo quello che ho mandato (se nel frattempo è cambiato altro resta in coda)
-  L.dirty = L.dirty.filter(id => !ids.includes(id)); saveLeague(true);
+  // Tolgo dalla coda solo la versione che ho mandato: un documento modificato di nuovo durante l'invio (touch non lo
+  // riaccoda, c'era già) ha un updatedAt diverso e resta in coda, altrimenti l'ultima modifica non partirebbe mai
+  const doc = id => L.players[id] || L.tournaments[id];
+  L.dirty = L.dirty.filter(id => !sent.has(id) || (doc(id) && doc(id).updatedAt !== sent.get(id))); saveLeague(true);
   return docs.length;
 }
 async function syncNow(manual) {
-  if (!syncConfigured() || syncState.running) return false;
+  if (!syncConfigured()) return false;
+  // Richiesta arrivata durante un sync: si rifà subito dopo, così niente resta indietro
+  if (syncState.running) { syncState.again = true; return false; }
   if (typeof navigator !== 'undefined' && navigator.onLine === false) { syncState.error = 'Offline'; if (manual) toast('Sei offline'); return false; }
   syncState.running = true; syncState.error = null; renderSyncStatus();
   try {
@@ -115,7 +120,10 @@ async function syncNow(manual) {
     syncState.error = e.message || 'Errore di rete';
     if (manual) toast(`Sync: ${syncState.error}`);
     return false;
-  } finally { syncState.running = false; renderSyncStatus(); }
+  } finally {
+    syncState.running = false; renderSyncStatus();
+    if (syncState.again) { syncState.again = false; if (!syncState.error) syncSoon(); }
+  }
 }
 // La lega ha un PIN master? (pubblico: dice solo se esiste). Facoltativo: con uno schema vecchio si ignora.
 // Con lo schema recente dice anche l'ora del server: il timer condiviso parte da un istante assoluto (startedAt),

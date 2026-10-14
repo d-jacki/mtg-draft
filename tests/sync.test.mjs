@@ -143,3 +143,25 @@ const modalTitle = () => sandbox.document.getElementById('modalTitle');
   server.noSeq = false;
   app.disconnectSync();
 }
+
+// ── 12. Modifica fatta mentre il sync sta caricando: non si perde ──
+{
+  resetAll();
+  connect('1234');
+  const anna = app.createPlayer('Anna'); app.saveLeague(true);
+  const orig = sandbox.fetch;
+  let edited = false;
+  // Il nome cambia proprio mentre la richiesta di caricamento è in volo
+  sandbox.fetch = async (url, o) => {
+    if (!edited && String(url).endsWith('/rpc/league_push')) { edited = true; const r = orig(url, o); app.updatePlayer(anna.id, { name: 'Anna Rossi' }); return r; }
+    return orig(url, o);
+  };
+  const again = app.syncNow(false);
+  const second = await app.syncNow(false), first = await again;
+  check('sync: richiesta durante un sync in corso → segnata per dopo', second === false && first === true && S.syncState.again === false, JSON.stringify({ second, first, err: S.syncState.error, rows: [...server.rows.keys()] }));
+  sandbox.fetch = orig;
+  check('sync: documento modificato durante l\'invio resta in coda', S.L.dirty.includes(anna.id) && server.rows.get(anna.id).data.name === 'Anna');
+  await app.syncNow(false);
+  check('sync: al giro dopo parte anche l\'ultima modifica', server.rows.get(anna.id).data.name === 'Anna Rossi' && !S.L.dirty.includes(anna.id));
+  app.disconnectSync();
+}

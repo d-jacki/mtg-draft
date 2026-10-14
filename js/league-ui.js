@@ -442,6 +442,18 @@ function setDeck(target, key, colors) {
     updateTournament(target, { decks: { ...(t.decks || {}), [key]: colors } });
   }
 }
+// Mazzi cambiati su un altro telefono dopo l'archiviazione: quel telefono può non avere ancora lo storico (sync non
+// arrivato), quindi lo aggiorna chi lo riceve, altrimenti statistiche colore e medaglie resterebbero indietro
+function archiveDeckChanges(prev) {
+  const t = T.archivedId && L.tournaments[T.archivedId]; if (!t || t.deleted) return;
+  const decks = { ...(t.decks || {}) }; let changed = false;
+  for (const p of T.players) {
+    const now = (T.decks && T.decks[p.id]) || '';
+    if (!p.leagueId || now === (prev[p.id] || '') || now === (decks[p.leagueId] || '')) continue;
+    decks[p.leagueId] = now; changed = true;
+  }
+  if (changed) updateTournament(T.archivedId, { decks });
+}
 function toggleDeck(target, key, c) {
   const e = deckEntries(target).find(x => x.key === String(key)); if (!e) return;
   setDeck(target, e.key, COLORS.filter(x => (x === c ? !e.colors.includes(x) : e.colors.includes(x))).join(''));
