@@ -519,7 +519,14 @@ function showScoreInfo(){
         <li>Danno letale simultaneo</li>
         <li>Patta intenzionale di un singolo game</li>
       </ul>
-      <p style="margin:0 0 12px;padding:10px 12px;border-radius:8px;background:var(--accent-light);color:var(--accent-dark);">Tempo scaduto sull'1 a 1 e la terza partita finisce ai turni senza un vincitore: segna <b>1–1–1</b> (in <i>Altri risultati</i>), non 1–1 e non ID.</p>
+      <div style="margin:0 0 12px;padding:10px 12px;border-radius:8px;background:var(--accent-light);color:var(--accent-dark);">
+        <p style="margin:0 0 6px;font-weight:700;">Pareggio sull'1 a 1 a tempo scaduto:</p>
+        <ul style="margin:0;padding-left:18px;">
+          <li>la terza partita è cominciata e finisce ai turni senza un vincitore → <b>1–1–1</b></li>
+          <li>la terza non è mai cominciata (la seconda è finita durante i turni extra, oppure vi fermate d'accordo) → <b>1–1</b></li>
+        </ul>
+        <p style="margin:6px 0 0;font-size:0.8rem;">Se la seconda finisce prima dello scadere, la terza va cominciata anche con pochi minuti rimasti. Tutti e due i risultati sono in <i>Altri risultati</i>; l'ID è solo per la patta concordata senza giocare.</p>
+      </div>
       <p style="margin:0 0 6px;font-weight:700;color:var(--text);">Esempi tipici:</p>
       <ul style="margin:0 0 12px;padding-left:20px;">
         <li><b>1–0</b> → giocata 1 sola partita, vinta dal 1°</li>
