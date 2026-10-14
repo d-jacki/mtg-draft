@@ -107,6 +107,15 @@
   </div>
 </div>
 
+<!-- APP APERTA IN UN'ALTRA FINESTRA (main.js) -->
+<div class="modal-overlay instance-overlay" id="instanceOverlay">
+  <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="instanceTitle" aria-describedby="instanceText">
+    <h3 id="instanceTitle">App aperta in un'altra finestra</h3>
+    <p id="instanceText">L'app è stata aperta altrove su questo telefono (un'altra scheda, il browser o l'app installata). Per non sovrascrivere i dati, qui si ferma.</p>
+    <button class="btn btn-primary" onclick="reloadApp()">Usa qui</button>
+  </div>
+</div>
+
 <!-- UPDATE BANNER -->
 <div class="update-banner" id="updateBanner">
   <span>Nuova versione disponibile</span>

@@ -8,6 +8,29 @@ renderRosterChips();
 window.addEventListener('online', () => syncSoon());
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - syncState.lastSync > 60000) syncNow(false); });
 
+// ── UNA SOLA FINESTRA ──
+// Due finestre dell'app sullo stesso telefono (scheda del browser e app installata, o due schede) condividono i dati
+// salvati e l'id del telefono: si sovrascriverebbero a vicenda, e nel torneo condiviso le operazioni dell'una
+// sembrerebbero già fatte all'altra. Vale l'ultima aperta: le altre si fermano finché non si tocca "Usa qui", che
+// ricarica la finestra (con i dati salvati dall'altra) e la fa tornare l'ultima.
+const INSTANCE_ID = uid('w');
+function instanceMessage(msg) { if (msg && msg.t === 'claim' && msg.id !== INSTANCE_ID) instanceSleep(); }
+function instanceSleep() {
+  if (_appInactive) return;
+  _appInactive = true;
+  clearTimeout(_syncTimer); clearTimeout(live.pubTimer); stopLive();
+  clearInterval(TM.interval); TM.interval = null; releaseWakeLock();
+  closeModal(); closeAnnounce();
+  $id('instanceOverlay').classList.add('active');
+}
+if (typeof BroadcastChannel === 'function') {
+  try {
+    const bc = new BroadcastChannel('mtg-draft-window');
+    bc.onmessage = e => instanceMessage(e.data);
+    bc.postMessage({ t: 'claim', id: INSTANCE_ID });
+  } catch (e) {}
+}
+
 // ── RESTORE ──
 (function(){
   const timerWasRunning = load();

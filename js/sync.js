@@ -103,7 +103,7 @@ async function syncPush() {
   return docs.length;
 }
 async function syncNow(manual) {
-  if (!syncConfigured()) return false;
+  if (!syncConfigured() || _appInactive) return false;
   // Richiesta arrivata durante un sync: si rifà subito dopo, così niente resta indietro
   if (syncState.running) { syncState.again = true; return false; }
   if (typeof navigator !== 'undefined' && navigator.onLine === false) { syncState.error = 'Offline'; if (manual) toast('Sei offline'); return false; }

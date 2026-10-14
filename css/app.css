@@ -443,6 +443,8 @@ input::placeholder { color: var(--text-dim); }
 }
 @keyframes modalBgIn { from { opacity: 0; } to { opacity: 1; } }
 .modal-overlay.active { display: flex; }
+/* Sopra tutto, anche annuncio e coriandoli: questa finestra è ferma */
+.instance-overlay { z-index: 600; }
 .modal {
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 28px;

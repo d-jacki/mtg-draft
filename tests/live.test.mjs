@@ -2,6 +2,7 @@
 // vista "Segui live", PIN (verifica, blocco anti forza bruta, schema vecchio), torneo gestito da più telefoni.
 import { app, S, sandbox, storage, check, section, match, reset } from './harness.mjs';
 import { LEAGUE, server, resetServer } from './mock-supabase.mjs';
+import vm from 'node:vm';
 
 section('Live e lega predefinita');
 
@@ -332,6 +333,64 @@ section('Torneo condiviso');
   app.liveJoin();
   check('unisciti: torneo concluso non archiviato → chiede prima', sandbox.document.getElementById('modalTitle').textContent === 'Unirti al torneo?' && S.T.id === 't_locale');
   app.closeModal();
+
+  // "Esci solo da questo telefono": le modifiche in coda partono, poi il telefono esce dai co-gestori
+  await fresh(3);
+  remote(d => {}); // un altro telefono si unisce
+  S.live.rev = 0; await app.liveFetch();
+  check('esci: due telefoni gestiscono il torneo', app.liveOthersManaging());
+  app.setRes(0, 0, 2, 0, 0); // non ancora inviato
+  remote(d => { Object.assign(d.rounds[0].pairings[1], { p1wins: 0, p2wins: 2 }); }); // e intanto l'altro scrive
+  storage.set('mtg-t', '{}');
+  await app.leaveTournament();
+  const acks = server.live.data.acks;
+  check('esci: il risultato fatto qui arriva agli altri prima di uscire', server.live.data.rounds[0].pairings[0].p1wins === 2 && server.live.data.rounds[0].pairings[1].p2wins === 2);
+  check('esci: il telefono non è più tra i co-gestori', !(app.deviceId() in acks) && 'd_altro' in acks, JSON.stringify(acks));
+  check('esci: il torneo resta in diretta per gli altri, qui si riparte da capo', server.live.data.id === S.T.id && !server.live.data.ended && !storage.has('mtg-t'));
+  // Dal telefono rimasto: torna da solo, quindi "Nuovo torneo" può chiudere il live senza PIN master
+  const left = app.deviceId();
+  S.T.acks = { ...acks };
+  check('esci: per chi resta non ci sono più altri co-gestori', !Object.keys(S.T.acks).some(k => k !== 'd_altro'));
+
+  // Senza rete: chiede se uscire comunque
+  await fresh(3);
+  remote(d => {}); S.live.rev = 0; await app.liveFetch();
+  app.setRes(0, 0, 2, 0, 0);
+  const realFetch = sandbox.fetch;
+  sandbox.fetch = async () => { throw new Error('Failed to fetch'); };
+  storage.set('mtg-t', '{}');
+  sandbox.document.getElementById('modalTitle').textContent = '';
+  await app.leaveTournament();
+  sandbox.fetch = realFetch;
+  check('esci offline: chiede conferma e non cancella niente', sandbox.document.getElementById('modalTitle').textContent === 'Uscire comunque?' && storage.has('mtg-t') && /modifica fatta qui/.test(sandbox.document.getElementById('modalText').textContent), sandbox.document.getElementById('modalText').textContent);
+  app.closeModal();
+
+  // "Disattiva live" mentre altri gestiscono il torneo: anche così si esce dai co-gestori
+  await app.livePublishNow(false); await sleep(150);
+  S.live.rev = 0; await app.liveFetch();
+  app.setLivePublish(false); await sleep(150);
+  check('disattiva live: il telefono esce dai co-gestori, il torneo resta agli altri', !(app.deviceId() in server.live.data.acks) && server.live.data.id === S.T.id);
+  S.syncCfg.live = true;
+
+  // Ripristino dalla cronologia: un telefono uscito non torna tra i co-gestori
+  S.T.acks = { [left]: 3, d_altro: 5 };
+  app.applyOp({ t: 'restore', state: { ...app.liveSnapshot(), acks: { [left]: 2, d_altro: 4, d_uscito: 1 } } });
+  check('ripristino: restano gli acks attuali, senza chi è uscito', S.T.acks[left] === 3 && S.T.acks.d_altro === 5 && !('d_uscito' in S.T.acks), JSON.stringify(S.T.acks));
+}
+
+// ── 6c. Due finestre dell'app sullo stesso telefono: vale l'ultima aperta ──
+{
+  const overlay = sandbox.document.getElementById('instanceOverlay');
+  app.instanceMessage({ t: 'claim', id: vm.runInContext('INSTANCE_ID', sandbox) });
+  check('finestre: il proprio annuncio non ferma questa', !overlay.classList.contains('active'));
+  storage.set('mtg-t', 'prima');
+  app.instanceMessage({ t: 'claim', id: 'w_altra' });
+  check('finestre: aperta un\'altra → questa si ferma e lo dice', overlay.classList.contains('active') && !S.live.started);
+  app.save();
+  check('finestre: la finestra ferma non salva più', storage.get('mtg-t') === 'prima');
+  check('finestre: né sincronizza né pubblica', await app.syncNow(false) === false && await app.livePublishNow(false) === false);
+  vm.runInContext('_appInactive = false', sandbox);
+  overlay.classList.remove('active');
 }
 
 // ── 7. Stato live con markup: ignorato ──

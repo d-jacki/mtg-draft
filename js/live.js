@@ -60,8 +60,37 @@ function setLivePublish(on) {
 function liveStop() {
   // Già staccato: il torneo in diretta (se c'è ancora) è degli altri telefoni, non va chiuso
   if (!T.started || !T.id || liveSh().detached) return;
-  if (!liveOthersManaging()) liveClear(false);
+  if (liveOthersManaging()) liveRemoveMe(); else liveClear(false);
   const sh = liveSh(); sh.detached = true; sh.pending = []; saveSh();
+}
+// Questo telefono smette di gestire il torneo condiviso: si toglie dagli acks, così gli altri non lo contano più tra i
+// co-gestori (⇄, e "Nuovo torneo" che chiede "Esci solo da qui / Chiudi per tutti"). Si scrive sopra lo stato del
+// server, con la sua revisione; PIN e torneo letti subito (togliendo il PIN, liveStop arriva prima che sparisca).
+async function liveRemoveMe() {
+  if (!syncCanWrite() || !T.id) return false;
+  const me = deviceId(), tid = T.id, pin = syncCfg.pin, league = syncCfg.league;
+  let d = live.data, rev = live.rev;
+  for (let i = 0; i < 3; i++) {
+    if (!d || d.id !== tid || !Object.prototype.hasOwnProperty.call(d.acks || {}, me)) return true;
+    const acks = { ...d.acks }; delete acks[me];
+    const data = { ...d, acks, device: me, publishedAt: Date.now(), note: 'Un telefono ha smesso di gestirlo', by: liveMe() || null };
+    let out;
+    try { out = await sbRpc('league_live_sync', { p_league: league, p_pin: pin, p_id: tid, p_data: data, p_rev: rev, p_updated_at: Date.now() }) || {}; }
+    catch (e) { return false; }
+    if (!out.conflict) return true;
+    d = out.data; rev = out.rev;
+  }
+  return false;
+}
+// "Esci solo da questo telefono": prima partono le modifiche fatte qui e non ancora confermate, poi ci si toglie
+// dai co-gestori. false = non riuscito (rete assente): chi chiama chiede se uscire comunque.
+async function liveLeave() {
+  const sh = liveSh();
+  for (let i = 0; i < 5 && sh.pending.length; i++) {
+    await livePublishNow(false);
+    if (sh.pending.length) await new Promise(r => setTimeout(r, 300));
+  }
+  return !sh.pending.length && await liveRemoveMe();
 }
 // Riprende a trasmettere (live riattivato, PIN inserito)
 function liveResume() {
@@ -96,7 +125,7 @@ function livePubErrorText(e) {
   return /league_live_sync|function/i.test(msg) ? 'Rilancia supabase/schema.sql per il torneo condiviso' : msg;
 }
 async function livePublishNow(clear, keepalive) {
-  if (!syncCanWrite()) return false;
+  if (!syncCanWrite() || _appInactive) return false;
   if (clear) return liveClear(keepalive);
   if (!sharingOn()) return false;
   const sh = liveSh();

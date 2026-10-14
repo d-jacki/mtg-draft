@@ -14,9 +14,12 @@ function vibrate(ms) { if (navigator.vibrate) navigator.vibrate(ms); }
 // Movimento ridotto nelle impostazioni del telefono: niente coriandoli né scorrimento animato
 function reducedMotion() { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches; }
 
+// App aperta in un'altra finestra sullo stesso telefono (main.js): questa non salva, non sincronizza e non pubblica
+let _appInactive = false;
+
 // Wake lock: schermo acceso finché il timer corre
 let _wakeLock = null;
-async function acquireWakeLock() { try { if ('wakeLock' in navigator && !_wakeLock) { _wakeLock = await navigator.wakeLock.request('screen'); _wakeLock.addEventListener('release', () => { _wakeLock = null; }); } } catch (e) {} }
+async function acquireWakeLock() { try { if ('wakeLock' in navigator && !_wakeLock && !_appInactive) { _wakeLock = await navigator.wakeLock.request('screen'); _wakeLock.addEventListener('release', () => { _wakeLock = null; }); } } catch (e) {} }
 function releaseWakeLock() { if (_wakeLock) { _wakeLock.release().catch(() => {}); _wakeLock = null; } }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && TM.running) acquireWakeLock(); });
 
@@ -52,6 +55,7 @@ function shortName(pid) {
   return T.players.some(o => o.id !== pid && first(o.name) === f) ? p.name : p.name.split(' ')[0];
 }
 function save() {
+  if (_appInactive) return;
   localStorage.setItem('mtg-t', JSON.stringify({
     T, viewingRound, playerIdCounter,
     tm: { seconds: TM.running && TM.startedAt ? Math.floor((clockNow() - TM.startedAt) / 1000) : TM.seconds, running: TM.running, total: TM.total, firedWarning: TM.firedWarning, firedExpired: TM.firedExpired, firedOvertime: TM.firedOvertime },
@@ -81,7 +85,7 @@ function load() {
 // lo stato è già salvato, l'avviso del browser ("le modifiche potrebbero non essere salvate") sarebbe solo un doppione
 let _appReload = false;
 function reloadApp() { _appReload = true; location.reload(); }
-window.addEventListener('beforeunload', e => { if (!_appReload && T.started && !T.ended) { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('beforeunload', e => { if (!_appReload && !_appInactive && T.started && !T.ended) { e.preventDefault(); e.returnValue = ''; } });
 let _modalReturnFocus = null;
 function _focusableInModal(){return [...$id('modal').querySelectorAll('button,select,input,textarea,a[href],[tabindex]:not([tabindex="-1"])')].filter(el=>!el.disabled&&el.offsetParent!==null);}
 function _openModal(){_modalReturnFocus=document.activeElement;$id('modal').classList.add('active');setTimeout(()=>{const f=_focusableInModal();if(f.length)f[0].focus();},50);}
@@ -368,8 +372,9 @@ function doOp(op){if(!applyOp(op))return false;if(typeof liveRecordOp==='functio
 function resultsSig(){return JSON.stringify([T.rounds.map(r=>r.pairings.map(m=>[m.p1,m.p2,m.p1wins,m.p2wins,m.draws])),T.players.map(p=>!!p.dropped)]);}
 function applyOp(op){
   if(op.t==='join')return true;
-  // Ripristino di una versione dalla cronologia: tutto lo stato torna com'era, gli acks restano i più recenti
-  if(op.t==='restore'){const acks={...(T.acks||{})};liveLoadState(op.state);for(const[k,v]of Object.entries(acks))T.acks[k]=Math.max(T.acks[k]||0,v);return true;}
+  // Ripristino di una versione dalla cronologia: tutto lo stato torna com'era, gli acks restano quelli attuali (sempre
+  // più avanti di quelli vecchi, e senza i telefoni che nel frattempo sono usciti)
+  if(op.t==='restore'){const acks={...(T.acks||{})};liveLoadState(op.state);T.acks=acks;return true;}
   if(op.t==='deck'){T.decks=T.decks||{};T.decks[op.pid]=op.colors;return true;}
   if(op.t==='archived'){if(!T.ended)return false;T.archivedId=op.id;T.players.forEach(p=>{if(op.lids&&op.lids[p.id])p.leagueId=op.lids[p.id];});return true;}
   if(T.ended)return false;
@@ -631,12 +636,19 @@ function confirmReset(){
   // Torneo gestito anche da altri telefoni: si può uscire solo da qui senza toglierlo agli altri
   if(T.started&&!T.ended&&typeof liveOthersManaging==='function'&&liveOthersManaging()){
     showModalCustom('Nuovo torneo?','Questo torneo lo stanno gestendo anche altri telefoni.',
-      `<button class="btn btn-primary" onclick="closeModal();resetTournament(false)">Esci solo da questo telefono</button>
+      `<button class="btn btn-primary" onclick="closeModal();leaveTournament()">Esci solo da questo telefono</button>
       <button class="btn btn-danger mt" onclick="closeModal();requireMaster(()=>resetTournament(true))">Chiudi il torneo per tutti</button>
       <button class="btn btn-secondary btn-sm mt" onclick="closeModal()">Annulla</button>`);
     return;
   }
   showModal('Nuovo torneo?',T.archivedId?'Il torneo è già salvato nello storico della lega.':T.ended?'Attenzione: questo torneo non è stato salvato nello storico della lega.':T.started?'Il torneo in corso non è concluso: non finirà nello storico della lega.':'I giocatori inseriti verranno tolti. Lo storico della lega resta.',()=>resetTournament(true));
+}
+// Esce dal torneo condiviso lasciandolo agli altri telefoni: prima avvisa il server (modifiche in coda comprese)
+async function leaveTournament(){
+  toast('Esco dal torneo condiviso…');
+  if(await liveLeave()){resetTournament(false);return;}
+  const n=liveSh().pending.length;
+  showModal('Uscire comunque?',`Non riesco a raggiungere il server: gli altri telefoni continueranno a contarti tra chi gestisce il torneo${n?` e ${n===1?'una modifica fatta qui non ancora inviata andrà persa':n+' modifiche fatte qui non ancora inviate andranno perse'}`:''}.`,()=>resetTournament(false));
 }
 function resetTournament(clearLive){if(clearLive)liveClearOnReset();localStorage.removeItem('mtg-t');reloadApp();}
 // Il torneo concluso ancora aperto qui è stato eliminato dalla lega (da questo telefono o da un altro, via sync):

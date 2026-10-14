@@ -16,6 +16,7 @@ PWA per gestire tornei di Magic: The Gathering tra amici — draft con pairing *
 - Schermata "Annuncia pairing" a caratteri grandi da mostrare al tavolo, con precedenti e pronostico Elo per ogni tavolo
 - Drop con auto-forfeit, undo round, podio finale con coriandoli, delta posizioni in classifica
 - **🎨 Mazzi**: un solo editor dei colori (dalla schermata Round, dalla Classifica o dal torneo nello storico) che aggiorna insieme torneo, diretta e storico; i colori compaiono accanto ai nomi nei match, in classifica e nella diretta
+- Una sola finestra per telefono: se l'app viene aperta anche altrove (un'altra scheda, il browser e l'app installata) vale l'ultima aperta, le altre si fermano con "Usa qui" per riprenderla, così non si sovrascrivono i dati
 - Offline-first (service worker, font self-hosted), installabile su Android e iOS, salvataggio automatico in localStorage, avviso quando è disponibile una nuova versione (controllata anche ogni 30 minuti e al ritorno nell'app)
 
 ### Lega (tab "Lega")
@@ -35,7 +36,7 @@ PWA per gestire tornei di Magic: The Gathering tra amici — draft con pairing *
 ### Torneo in diretta
 - Il telefono che gestisce il torneo (con il PIN) lo pubblica a ogni risultato, round o avvio del timer — badge **● LIVE** nel round
 - **Gestione condivisa**: chi ha il PIN apre il live e tocca **✏️ Gestisci anche tu**; da lì più telefoni inseriscono risultati, avviano il round successivo, il timer, i drop (badge **● LIVE ⇄**). Due risultati su tavoli diversi nello stesso momento restano entrambi; se due telefoni fanno la stessa cosa insieme (es. "Round successivo") vale il primo e l'altro viene avvisato. Scritture a revisioni: ogni telefono manda lo stato con la revisione da cui è partito, se nel frattempo qualcun altro ha scritto riparte dallo stato nuovo e riapplica le sue modifiche
-- Avviando un torneo mentre un altro telefono ne ha uno in diretta, l'app propone di unirsi invece di sostituirlo; "Nuovo torneo" su un torneo gestito in più telefoni chiede se uscire solo da quel telefono o chiuderlo per tutti
+- Avviando un torneo mentre un altro telefono ne ha uno in diretta, l'app propone di unirsi invece di sostituirlo; "Nuovo torneo" su un torneo gestito in più telefoni chiede se uscire solo da quel telefono (prima partono le sue modifiche in coda, poi esce dai co-gestori: il torneo resta agli altri) o chiuderlo per tutti
 - **🕘 Cronologia modifiche** (nel round e in classifica, o da Dati e sync → Avanzate per i tornei degli ultimi 14 giorni): ogni versione del torneo con ora, telefono e cosa è cambiato ("R2 · Anna 2–1 Bruno", "Round 3 generato"). **Ripristina** riporta il torneo a quel momento su tutti i telefoni che lo gestiscono; il ripristino è una nuova versione, quindi si può annullare. Recupera anche un torneo chiuso o sostituito per sbaglio da un altro telefono
 
 ### PIN master (facoltativo)
@@ -92,7 +93,7 @@ L'harness (`tests/harness.mjs`) carica gli script nell'ordine di `index.html` (t
 - `tournament.test.mjs` — tiebreaker, GW% con ID/bye, pairing (anche performance a 16 giocatori), round robin, drop/forfeit, undo, tavolo, UX, movimento ridotto, avviso all'uscita
 - `league.test.mjs` — archivio, campionato, Elo, scontri diretti, unione profili, achievement, import/export, colori, colpaccio, obiettivi, rendering, validazione dei dati esterni, archivio dello stesso torneo da due telefoni
 - `sync.test.mjs` — primo caricamento, modifiche remote, last-write-wins, PIN errato, sola lettura, paginazione, link invito (anche verso un altro server), modifiche caricate in ritardo, schema senza `seq`
-- `live.test.mjs` — lega predefinita, verifica PIN e blocco anti forza bruta, pubblicazione live, vista "Segui live", Realtime, torneo gestito da più telefoni (conflitti, round concorrenti, fine torneo e drop concorrenti, unione, distacco, PIN inserito a torneo avviato), stati live non validi, WebSocket riaperto, timer con orologi sfasati
+- `live.test.mjs` — lega predefinita, verifica PIN e blocco anti forza bruta, pubblicazione live, vista "Segui live", Realtime, torneo gestito da più telefoni (conflitti, round concorrenti, fine torneo e drop concorrenti, unione, distacco, uscita di un telefono, PIN inserito a torneo avviato), una sola finestra per telefono, stati live non validi, WebSocket riaperto, timer con orologi sfasati
 - `admin.test.mjs` — PIN master, cronologia e ripristino (anche di un torneo sostituito), correzione di round chiusi, tornei eliminati
 - `sw.test.mjs` — service worker: stale-while-revalidate con `waitUntil`, fallback offline, richieste cross-origin
 
