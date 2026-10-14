@@ -453,7 +453,7 @@ function renderRound(keepScroll){
   const real=round?round.pairings.filter(m=>!m.rest&&!m.bye):[],done=real.filter(m=>m.p1wins!==null).length,tot=real.length;
   let h='';
   if(round&&!T.ended)h+=renderStickyBar(done,tot,isRR);
-  h+=`<div class="card" style="padding:12px 16px;"><div class="flex-between"><button class="btn btn-secondary btn-sm" onclick="viewRound(${viewingRound-1})" ${viewingRound<=1?'disabled':''} aria-label="Round precedente">←</button><span style="font-weight:800;font-size:0.95rem;">Round ${viewingRound} <span style="font-weight:500;color:var(--text-dim);">/ ${T.totalRounds}</span> <span class="mode-badge ${isRR?'rr':'swiss'}">${isRR?'BO1':'Swiss'}</span>${liveBadgeHtml()}</span><button class="btn btn-secondary btn-sm" onclick="viewRound(${viewingRound+1})" ${viewingRound>=maxNav?'disabled':''} aria-label="Round successivo">→</button></div>${round&&!T.ended?`<button class="btn btn-secondary btn-sm" style="width:100%;margin-top:10px;" onclick="openAnnounce()">📣 Annuncia pairing</button>`:''}</div>`;
+  h+=`<div class="card" style="padding:12px 16px;"><div class="flex-between"><button class="btn btn-secondary btn-sm" onclick="viewRound(${viewingRound-1})" ${viewingRound<=1?'disabled':''} aria-label="Round precedente">←</button><span style="font-weight:800;font-size:0.95rem;">Round ${viewingRound} <span style="font-weight:500;color:var(--text-dim);">/ ${T.totalRounds}</span> <span class="mode-badge ${isRR?'rr':'swiss'}">${isRR?'BO1':'Swiss'}</span>${liveBadgeHtml()}</span><button class="btn btn-secondary btn-sm" onclick="viewRound(${viewingRound+1})" ${viewingRound>=maxNav?'disabled':''} aria-label="Round successivo">→</button></div><div class="btn-row" style="margin-top:10px;">${round&&!T.ended?`<button class="btn btn-secondary btn-sm" onclick="openAnnounce()">📣 Annuncia</button>`:''}<button class="btn btn-secondary btn-sm" onclick="openDeckEditor()">${deckBtnLabel()}</button></div></div>`;
   if(!round){C.innerHTML=h;return;}
   // Round Swiss già chiusi: modificabili solo in modalità master (correzione di un errore)
   const pastFix=!isRR&&viewingRound<T.currentRound&&typeof masterOn==='function'&&masterOn();
@@ -468,7 +468,7 @@ function renderRound(keepScroll){
     const w1=has&&m.p1wins>m.p2wins?'winner':'',w2=has&&m.p2wins>m.p1wins?'winner':'';
     const d1=p1.dropped?'dropped':'',d2=p2&&p2.dropped?'dropped':'';
     h+=`<div class="match-card ${flash} ${forf}" id="match-${viewingRound}-${i}"><div class="match-header"><span>Tavolo ${i+1}</span>${m.forfeit?'<span class="match-status-forfeit">Forfeit</span>':has?'<span class="match-status-done">Completato</span>':'<span>In attesa</span>'}</div>
-      <div class="match-players"><div class="match-player ${w1} ${d1}">${esc(p1.name)}</div><div class="match-vs">vs</div><div class="match-player ${w2} ${d2}">${p2?esc(p2.name):'?'}</div></div>`;
+      <div class="match-players"><div class="match-player ${w1} ${d1}">${esc(p1.name)}${matchDeck(m.p1)}</div><div class="match-vs">vs</div><div class="match-player ${w2} ${d2}">${p2?esc(p2.name):'?'}${p2?matchDeck(m.p2):''}</div></div>`;
     if(canEdit&&!m.forfeit){if(has)h+=`<div class="match-result-display" role="button" tabindex="0" onclick="editMatch(${viewingRound-1},${i})">${fmtRes(m)}<span>Tocca per modificare</span></div>`;else h+=isRR?rrBtns(i,m):swissBtns(i,m);}
     else if(has)h+=`<div class="match-result-display" style="cursor:default;">${fmtRes(m)}</div>`;
     h+='</div>';
@@ -478,6 +478,8 @@ function renderRound(keepScroll){
   if(firstInc&&canEdit&&!keepScroll)setTimeout(()=>{const el=document.getElementById(firstInc);if(el)el.scrollIntoView({behavior:reducedMotion()?'auto':'smooth',block:'center'});},120);
 }
 
+// Colori del mazzo sotto il nome nella card del match (si segnano da 🎨 Mazzi)
+function matchDeck(pid){const h=deckPips(T.decks&&T.decks[pid]);return h?`<div class="match-deck">${h}</div>`:'';}
 function renderSwissActions(round){const allDone=round.pairings.every(m=>m.p1wins!==null);let h='<div class="card" style="padding:14px;">';const act=getActivePlayers();
   if(act.length>2){h+=`<div class="drop-row mb"><select id="dropSel" aria-label="Seleziona giocatore da ritirare"><option value="">Ritira giocatore...</option>${act.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button class="btn btn-danger btn-sm" onclick="dropPlayer()">Ritira</button></div>`;}
   if(allDone){h+=T.currentRound<T.totalRounds?'<button class="btn btn-primary" onclick="nextRound()">Round successivo →</button>':'<button class="btn btn-primary" onclick="confirmEnd()">Termina torneo</button>';}
@@ -599,17 +601,18 @@ function renderStandings(){
       const rec=isRR?`${p.record.wins}-${p.record.losses}`:`${p.record.wins}-${p.record.losses}-${p.record.draws}`;
       let dCell='';
       if(deltas){const d=deltas.get(p.id)||0;dCell=`<td><span class="standings-delta ${d>0?'up':d<0?'down':'flat'}">${d>0?'▲'+d:d<0?'▼'+(-d):'–'}</span></td>`;}
-      return `<tr onclick="togglePlayer(${p.id})" tabindex="0" role="button" aria-expanded="${expandedPlayer===p.id}" class="${p.dropped?'dropped':''} ${(T.ended?medals.has(p.id):i<3)?'top3':''}"><td class="standings-rank">${rank}</td><td class="standings-name">${esc(p.name)}${p.dropped?' ✗':''} <span class="who-titles">${leagueTitles(tournamentLid(p))}</span></td><td class="standings-record">${rec}</td><td>${p.mp}</td>${dCell}</tr>${expandedPlayer===p.id?`<tr><td colspan="${cols}" class="detail-cell" style="padding:0;">${renderDetail(p.id)}</td></tr>`:''}`;
+      return `<tr onclick="togglePlayer(${p.id})" tabindex="0" role="button" aria-expanded="${expandedPlayer===p.id}" class="${p.dropped?'dropped':''} ${(T.ended?medals.has(p.id):i<3)?'top3':''}"><td class="standings-rank">${rank}</td><td class="standings-name">${deckPips(T.decks&&T.decks[p.id])}${esc(p.name)}${p.dropped?' ✗':''} <span class="who-titles">${leagueTitles(tournamentLid(p))}</span></td><td class="standings-record">${rec}</td><td>${p.mp}</td>${dCell}</tr>${expandedPlayer===p.id?`<tr><td colspan="${cols}" class="detail-cell" style="padding:0;">${renderDetail(p.id)}</td></tr>`:''}`;
     }).join('')}
     </tbody></table></div>
     <div class="text-xs text-dim mt" style="text-align:center;">Tocca un giocatore per match e tiebreaker (Pts → ${isRR?'scontri diretti → ':''}OMW% → GW% → OGW%)</div></div>`;
+  if(T.started)h+=`<button class="btn btn-secondary" onclick="openDeckEditor()">${deckBtnLabel()}</button>`;
   if(T.ended&&!T.archivedId)h+=`<button class="btn btn-primary mt" onclick="if(archiveCurrent()){renderStandings();toast('Salvato nella lega');}">🏆 Salva nello storico della lega</button>`;
   if(T.started)h+=`<button class="share-btn" onclick="copyStandings()">📋 Copia classifica</button>`+historyBtn();
   h+=`<button class="btn btn-secondary mt" onclick="confirmReset()">Nuovo torneo</button>`;
   $id('standingsContent').innerHTML=h;
 }
 function togglePlayer(pid){expandedPlayer=expandedPlayer===pid?null:pid;renderStandings();}
-function renderDetail(pid){const ms=getPlayerMatches(pid);const lid=tournamentLid(P(pid));const tb=`<div class="player-detail-tb">OMW ${(omw(pid)*100).toFixed(1)}% · GW ${(gwp(pid)*100).toFixed(1)}% · OGW ${(ogw(pid)*100).toFixed(1)}%</div>${deckPickerHtml(pid)}${lid?`<button class="link-btn" onclick="event.stopPropagation();openProfile('${lid}')">Profilo in lega →</button>`:''}`;if(!ms.length)return`<div class="player-detail"><div class="text-sm text-dim">Nessun match</div>${tb}</div>`;return`<div class="player-detail">${ms.map(m=>{const c=m.result==='W'?'var(--green)':m.result==='L'?'var(--red)':'var(--text-dim)';return`<div class="player-detail-match"><span>R${m.round} vs ${esc(m.opp)}</span><span style="color:${c};font-weight:700;">${m.score}</span></div>`;}).join('')}${tb}</div>`;}
+function renderDetail(pid){const ms=getPlayerMatches(pid);const lid=tournamentLid(P(pid));const tb=`<div class="player-detail-tb">OMW ${(omw(pid)*100).toFixed(1)}% · GW ${(gwp(pid)*100).toFixed(1)}% · OGW ${(ogw(pid)*100).toFixed(1)}%</div>${lid?`<button class="link-btn" onclick="event.stopPropagation();openProfile('${lid}')">Profilo in lega →</button>`:''}`;if(!ms.length)return`<div class="player-detail"><div class="text-sm text-dim">Nessun match</div>${tb}</div>`;return`<div class="player-detail">${ms.map(m=>{const c=m.result==='W'?'var(--green)':m.result==='L'?'var(--red)':'var(--text-dim)';return`<div class="player-detail-match"><span>R${m.round} vs ${esc(m.opp)}</span><span style="color:${c};font-weight:700;">${m.score}</span></div>`;}).join('')}${tb}</div>`;}
 function copyStandings(){const isRR=T.mode==='roundrobin',st=getSwissStandings();let t=`${T.ended?'🏆 CLASSIFICA FINALE':'📊 Classifica'}\n${isRR?'Round Robin BO1':'Swiss'} · ${T.players.length} giocatori\n${'─'.repeat(26)}\n`;const medals=medalsById(st);st.forEach((p,i)=>{const m=medals.get(p.id)||`${i+1}.`;t+=isRR?`${m} ${p.name} — ${p.record.wins}W ${p.record.losses}L (${p.mp}pts)\n`:`${m} ${p.name} — ${p.record.wins}W ${p.record.losses}L ${p.record.draws}D (${p.mp}pts)\n`;});copyText(t,'Classifica copiata!');}
 function confirmReset(){
   // Torneo gestito anche da altri telefoni: si può uscire solo da qui senza toglierlo agli altri
@@ -629,7 +632,7 @@ function currentTournamentDeleted(){if(!T.started||!T.ended)return false;const t
 function clearDeletedTournament(msg){if(!currentTournamentDeleted())return false;try{sessionStorage.setItem('mtg-after-reset',JSON.stringify({tab:'league',msg}));}catch(e){}resetTournament(true);return true;}
 
 // ── NAV + SWIPE ──
-function switchTab(tab,fromPop){$qsa('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$qsa('.screen').forEach(s=>s.classList.toggle('active',s.id===`screen-${tab}`));if(tab==='round'){if(!T.mode||T.mode==='swiss')viewingRound=T.currentRound||1;renderRound();}if(tab==='standings')renderStandings();if(tab==='draft')renderSeating();if(tab==='league')renderLeague();window.scrollTo(0,0);if(!fromPop&&(!history.state||history.state.tab!==tab))history.pushState({tab},'');}
+function switchTab(tab,fromPop){$qsa('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$qsa('.screen').forEach(s=>s.classList.toggle('active',s.id===`screen-${tab}`));if(tab==='round'){if(!T.mode||T.mode==='swiss')viewingRound=T.currentRound||1;renderRound();}if(tab==='standings')renderStandings();if(tab==='draft')renderSeating();if(tab==='league')renderLeague();else if(typeof renderLiveUI==='function')renderLiveUI();window.scrollTo(0,0);if(!fromPop&&(!history.state||history.state.tab!==tab))history.pushState({tab},'');}
 history.replaceState({tab:'setup'},'');
 window.addEventListener('popstate',e=>{
   // Con modal/annuncio aperto il back chiude solo quello: la voce del tab corrente viene rimessa in cronologia

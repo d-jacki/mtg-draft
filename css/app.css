@@ -718,8 +718,18 @@ select {
 .pip-G { background: #3d8a55; color: #fff; }
 button.pip { width: 36px; height: 36px; font-size: 0.8rem; cursor: pointer; margin-right: 0; }
 .pip.off { background: var(--bg-input); color: var(--text-dim); border-style: dashed; }
-.deck-picker { display: flex; align-items: center; gap: 6px; padding-top: 10px; flex-wrap: wrap; }
-.deck-picker > span { margin-right: 4px; }
+/* Editor dei mazzi (unico, in un modal): nome e cinque colori per riga, il nome va a capo sui telefoni stretti */
+.deck-list { margin-top: 6px; }
+.deck-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.deck-row:last-child { border-bottom: none; }
+.deck-name { flex: 1 1 80px; min-width: 0; font-weight: 700; font-size: 0.88rem; overflow-wrap: anywhere; }
+.deck-pips { display: inline-flex; gap: 4px; margin-left: auto; }
+/* Colori in piccolo accanto ai nomi (sola lettura) */
+.pips-sm { display: inline-flex; gap: 1px; vertical-align: middle; margin-right: 5px; }
+.pips-sm .pip { width: 15px; height: 15px; font-size: 0.5rem; border-width: 1px; margin-right: 0; }
+.match-deck { margin-top: 5px; line-height: 1; }
+.match-deck .pips-sm { margin-right: 0; }
+.live-names .pips-sm { margin: 0 0 0 4px; }
 .link-btn { background: none; border: none; color: var(--accent); font-family: inherit; font-weight: 700; font-size: 0.8rem; padding: 10px 0 2px; cursor: pointer; min-height: 40px; }
 .color-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 0.8rem; }
 .color-name { width: 48px; color: var(--text-mid); font-weight: 600; }
@@ -766,9 +776,8 @@ button.pip { width: 36px; height: 36px; font-size: 0.8rem; cursor: pointer; marg
 .td-pos { width: 26px; text-align: center; font-weight: 800; color: var(--accent); }
 .td-name { flex: 1; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .td-rec { font-weight: 700; color: var(--text-mid); font-variant-numeric: tabular-nums; }
-.td-deck { padding: 2px 0 8px 34px; border-bottom: 1px solid var(--border); }
-.deck-edit { display: inline-flex; gap: 4px; }
-.deck-edit .pip { width: 32px; height: 32px; }
+.td-row { padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.td-row .pips-sm { margin-right: 0; flex: none; }
 .td-round { border-top: 1px solid var(--border); }
 .td-round > summary { padding: 10px 0; font-weight: 700; font-size: 0.85rem; cursor: pointer; }
 .td-match { display: flex; justify-content: space-between; gap: 8px; font-size: 0.8rem; padding: 4px 0 4px 8px; }
@@ -794,6 +803,12 @@ button.pip { width: 36px; height: 36px; font-size: 0.8rem; cursor: pointer; marg
   background: var(--bg-card); border: 1.5px solid var(--red); border-radius: var(--radius);
   box-shadow: var(--shadow-sm); font-family: inherit; font-size: 0.85rem; color: var(--text); cursor: pointer;
 }
+.live-strip { padding: 16px 16px 0; }
+.live-strip:empty { display: none; }
+.live-strip .live-banner { margin-bottom: 0; }
+/* Pallino rosso sul tab Lega finché c'è un torneo in diretta */
+.nav-btn { position: relative; }
+.nav-btn.has-live::after { content: ''; position: absolute; top: 5px; left: calc(50% + 8px); width: 9px; height: 9px; border-radius: 50%; background: var(--red); border: 2px solid var(--bg-card); animation: livePulse 1.6s infinite; }
 .live-banner:active { transform: scale(0.99); }
 .live-banner:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .live-banner-text { flex: 1; min-width: 0; line-height: 1.4; }

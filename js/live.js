@@ -214,7 +214,7 @@ function liveLoadState(d) {
 function liveRefreshTournament(prevRound, wasEnded) {
   if (T.mode !== 'roundrobin' && viewingRound === prevRound) viewingRound = T.currentRound;
   viewingRound = Math.max(1, Math.min(viewingRound, T.mode === 'roundrobin' ? T.totalRounds : T.currentRound));
-  renderRound(true); renderStandings(); updateStatus();
+  renderRound(true); renderStandings(); updateStatus(); paintDeckEditor();
   if (!wasEnded && T.ended) { switchTab('standings'); toast('🏆 Torneo concluso'); }
 }
 // Il torneo d diventa quello gestito da qui (unirsi al live, ripristino dalla cronologia). Se è quello in diretta
@@ -275,7 +275,22 @@ function liveApply(data, updatedAt, rev) {
   live.data = data || null;
   if (rev != null) liveReconcile(live.data, Number(rev));
   renderLiveUI();
+  liveAutoOpen();
 }
+// Si apre l'app (o la si riprende dopo un po') mentre un altro telefono ha un torneo in corso e qui non c'è un
+// torneo da gestire: si va dritti alla diretta, una volta sola. Il banner resta comunque su tutte le schermate.
+let _liveEnteredAt = Date.now(), _liveAutoDone = false, _liveHiddenAt = 0;
+function liveAutoOpen() {
+  if (_liveAutoDone || document.visibilityState !== 'visible' || !liveVisible() || live.data.ended) return;
+  _liveAutoDone = true;
+  const idle = T.started ? T.ended : T.players.length === 0;
+  if (!idle || Date.now() - _liveEnteredAt > 15000 || $id('modal').classList.contains('active') || LUI.live) return;
+  openLive();
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { _liveHiddenAt = Date.now(); return; }
+  if (_liveHiddenAt && Date.now() - _liveHiddenAt > 10 * 60e3) { _liveEnteredAt = Date.now(); _liveAutoDone = false; }
+});
 async function liveFetch() {
   if (!syncConfigured()) return;
   try {
@@ -400,7 +415,7 @@ function renderLiveView() {
   return withLiveTournament(d, () => {
     const isRR = d.mode === 'roundrobin', round = d.rounds[d.currentRound - 1];
     const me = liveMe().toLowerCase(), meP = d.players.find(p => p.name.toLowerCase() === me);
-    const name = id => { const p = P(id); return p ? esc(p.name) : '?'; };
+    const name = id => { const p = P(id); return p ? esc(p.name) : '?'; }, deck = id => deckPips((d.decks || {})[id]);
     const updated = new Date(d.publishedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     let h = `<button class="btn btn-secondary btn-sm mb" onclick="closeLive()">← Lega</button>
       <div class="card live-head"><div class="live-head-row"><span class="live-dot" aria-hidden="true"></span><span class="live-kicker">${d.ended ? 'Concluso' : 'In diretta'}</span><span class="text-xs text-dim" style="margin-left:auto;">agg. ${updated}</span></div>
@@ -424,24 +439,31 @@ function renderLiveView() {
         const hl = meP && (m.p1 === meP.id || m.p2 === meP.id) ? ' me' : '';
         if (m.rest) return `<div class="live-match${hl}"><span class="live-table">—</span><span class="live-names">${name(m.p1)} riposa</span></div>`;
         if (m.bye) return `<div class="live-match${hl}"><span class="live-table">Bye</span><span class="live-names">${name(m.p1)}</span><span class="live-res">2–0</span></div>`;
-        return `<div class="live-match${hl}"><span class="live-table">T${i + 1}</span><span class="live-names">${name(m.p1)} <span class="text-dim">vs</span> ${name(m.p2)}</span><span class="live-res${m.p1wins == null ? ' pending' : ''}">${m.p1wins == null ? 'in corso' : fmtRes(m)}</span></div>`;
+        return `<div class="live-match${hl}"><span class="live-table">T${i + 1}</span><span class="live-names">${name(m.p1)}${deck(m.p1)} <span class="text-dim">vs</span> ${name(m.p2)}${deck(m.p2)}</span><span class="live-res${m.p1wins == null ? ' pending' : ''}">${m.p1wins == null ? 'in corso' : fmtRes(m)}</span></div>`;
       }).join('')}</div>`;
     }
     const st = getSwissStandings(), medals = d.ended ? new Map(st.filter(p => !p.dropped).slice(0, 3).map((p, i) => [p.id, ['🥇', '🥈', '🥉'][i]])) : new Map();
     h += `<div class="card"><div class="card-title">Classifica</div><table class="standings-table"><thead><tr><th scope="col">#</th><th scope="col">Giocatore</th><th scope="col">${isRR ? 'W-L' : 'W-L-D'}</th><th scope="col">Pts</th></tr></thead><tbody>
-      ${st.map((p, i) => `<tr class="${p.dropped ? 'dropped' : ''}${meP && p.id === meP.id ? ' me' : ''}"><td class="standings-rank">${medals.get(p.id) || i + 1}</td><td class="standings-name">${esc(p.name)}${p.dropped ? ' ✗' : ''}</td><td class="standings-record">${isRR ? `${p.record.wins}-${p.record.losses}` : `${p.record.wins}-${p.record.losses}-${p.record.draws}`}</td><td>${p.mp}</td></tr>`).join('')}
+      ${st.map((p, i) => `<tr class="${p.dropped ? 'dropped' : ''}${meP && p.id === meP.id ? ' me' : ''}"><td class="standings-rank">${medals.get(p.id) || i + 1}</td><td class="standings-name">${deck(p.id)}${esc(p.name)}${p.dropped ? ' ✗' : ''}</td><td class="standings-record">${isRR ? `${p.record.wins}-${p.record.losses}` : `${p.record.wins}-${p.record.losses}-${p.record.draws}`}</td><td>${p.mp}</td></tr>`).join('')}
       </tbody></table></div>`;
     return h;
   });
 }
 function openLive() { LUI.live = true; LUI.profile = null; if (!$id('screen-league').classList.contains('active')) switchTab('league'); else renderLeague(); window.scrollTo(0, 0); }
 function closeLive() { LUI.live = false; renderLeague(); window.scrollTo(0, 0); }
-// Aggiorna solo le parti live (banner e vista), senza ridisegnare form aperti nel resto della Lega
+// Banner sopra tutte le schermate (non dentro la vista live). Mentre qui si gestisce un altro torneo resta solo
+// nella Lega, per non coprire round e timer.
+function liveBannerShown() {
+  const onLeague = $id('screen-league').classList.contains('active');
+  if (onLeague && LUI.live) return false;
+  return liveVisible() && (onLeague || !(T.started && !T.ended));
+}
+// Aggiorna solo le parti live (banner, pallino sul tab Lega e vista), senza ridisegnare form aperti nel resto della Lega
 function renderLiveUI() {
   const b = document.getElementById('liveBanner');
-  if (b && b.classList) b.innerHTML = T.started ? '' : liveBannerHtml();
-  const lb = document.getElementById('leagueLiveBanner');
-  if (lb && lb.classList) lb.innerHTML = liveBannerHtml();
+  if (b && b.classList) b.innerHTML = liveBannerShown() ? liveBannerHtml() : '';
+  const nb = document.querySelector('.nav-btn[data-tab="league"]');
+  if (nb) nb.classList.toggle('has-live', liveVisible() && !live.data.ended);
   const v = document.getElementById('liveView');
   if (v && v.classList && LUI.live) v.innerHTML = renderLiveView();
 }

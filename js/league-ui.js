@@ -26,15 +26,17 @@ function setLeagueSeason(s) { LUI.season = s; renderLeague(); }
 function onLeagueSynced() {
   if (clearDeletedTournament('Il torneo è stato eliminato dalla lega')) return;
   if ($id('screen-league').classList.contains('active')) renderLeague(); if (T.started) renderStandings();
+  paintDeckEditor();
 }
 
 function renderLeague() {
   const C = $id('leagueContent');
+  renderLiveUI(); // banner sopra la Lega, nascosto dentro la vista live
   if (LUI.live) { C.innerHTML = `<div id="liveView">${renderLiveView()}</div>`; return; }
   if (LUI.profile && resolvePlayer(LUI.profile)) { C.innerHTML = renderProfile(canonicalId(LUI.profile)); renderSyncBox(); return; }
   LUI.profile = null;
   const tournaments = sortedTournaments();
-  let h = `<div id="leagueLiveBanner">${liveBannerHtml()}</div><div class="league-tabs" role="tablist">${LEAGUE_VIEWS.map(([v, label]) => `<button role="tab" aria-selected="${LUI.view === v}" class="league-tab${LUI.view === v ? ' active' : ''}" onclick="setLeagueView('${v}')">${label}</button>`).join('')}</div>`;
+  let h = `<div class="league-tabs" role="tablist">${LEAGUE_VIEWS.map(([v, label]) => `<button role="tab" aria-selected="${LUI.view === v}" class="league-tab${LUI.view === v ? ' active' : ''}" onclick="setLeagueView('${v}')">${label}</button>`).join('')}</div>`;
   if (!tournaments.length && LUI.view !== 'players') {
     h += `<div class="card text-center"><div class="empty-emoji" aria-hidden="true">🏆</div><div class="card-title" style="margin-bottom:6px;">La lega parte dal prossimo torneo</div>
       <div class="text-sm text-dim" style="line-height:1.6;">Quando confermi <b>Termina torneo</b>, risultati, mazzi e classifica finiscono qui: campionato, rating Elo, scontri diretti e achievement si calcolano da soli.</div></div>`;
@@ -171,7 +173,7 @@ function renderProfile(id) {
 }
 function renderColorStats(s) {
   const rows = COLORS.map(c => ({ c, ...(s.colors[c] || { decks: 0, mW: 0, mL: 0, mD: 0 }) }));
-  if (!rows.some(r => r.decks)) return `<div class="card"><div class="card-title">Colori</div><div class="text-sm text-dim">Nessun mazzo registrato. Durante il torneo, in Classifica tocca un giocatore e segna i colori del mazzo.</div></div>`;
+  if (!rows.some(r => r.decks)) return `<div class="card"><div class="card-title">Colori</div><div class="text-sm text-dim">Nessun mazzo registrato. Durante il torneo tocca <b>🎨 Mazzi</b> nella schermata Round.</div></div>`;
   const max = Math.max(...rows.map(r => r.decks), 1);
   const best = rows.filter(r => r.mW + r.mL + r.mD >= 3).sort((a, b) => (b.mW + b.mD / 2) / (b.mW + b.mL + b.mD) - (a.mW + a.mD / 2) / (a.mW + a.mL + a.mD))[0];
   return `<div class="card"><div class="card-title">Colori</div>${rows.map(r => { const n = r.mW + r.mL + r.mD; return `<div class="color-row"><span class="pip pip-${r.c}" aria-hidden="true">${r.c}</span><span class="color-name">${COLOR_NAMES[r.c]}</span><span class="color-bar"><i style="width:${(r.decks / max) * 100}%"></i></span><span class="color-val">${r.decks} ${r.decks === 1 ? 'mazzo' : 'mazzi'}${n ? ` · ${pct((r.mW + r.mD / 2) / n)}` : ''}</span></div>`; }).join('')}
@@ -231,21 +233,15 @@ function openTournament(tid) {
   const ranked = rankedIds(t), dropped = new Set(t.dropped || []);
   const rec = id => { let w = 0, l = 0, d = 0; for (const r of t.rounds) for (const m of r) { if (m.rest || m.p1wins == null) continue; if (m.bye && m.p1 === id) { w++; continue; } if (m.p1 !== id && m.p2 !== id) continue; const mine = m.p1 === id ? m.p1wins : m.p2wins, th = m.p1 === id ? m.p2wins : m.p1wins; if (mine > th) w++; else if (mine < th) l++; else d++; } return t.mode === 'roundrobin' ? `${w}-${l}` : `${w}-${l}-${d}`; };
   const name = id => esc(t.names && t.names[id] ? t.names[id] : leagueName(id));
-  const deckEdit = id => `<span class="deck-edit">${COLORS.map(c => `<button class="pip pip-${c}${(t.decks[id] || '').includes(c) ? '' : ' off'}" onclick="toggleArchivedDeck('${t.id}','${id}','${c}')" aria-pressed="${(t.decks[id] || '').includes(c)}" aria-label="${COLOR_NAMES[c]}">${c}</button>`).join('')}</span>`;
-  t.decks = t.decks || {};
-  const standings = ranked.map((id, i) => `<div class="td-row"><span class="td-pos">${dropped.has(id) ? '✗' : i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</span><span class="td-name">${leagueEmoji(id)} ${name(id)}</span><span class="td-rec">${rec(id)}</span></div><div class="td-deck">${deckEdit(id)}</div>`).join('');
+  const decks = t.decks || {}, nDecks = ranked.filter(id => decks[id]).length;
+  const standings = ranked.map((id, i) => `<div class="td-row"><span class="td-pos">${dropped.has(id) ? '✗' : i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</span><span class="td-name">${leagueEmoji(id)} ${name(id)}</span>${deckPips(decks[id])}<span class="td-rec">${rec(id)}</span></div>`).join('');
   const rounds = t.rounds.map((r, ri) => `<details class="td-round"><summary>Round ${ri + 1}</summary>${r.map(m => m.rest ? `<div class="td-match text-dim">${name(m.p1)} riposa</div>` : m.bye ? `<div class="td-match">${name(m.p1)} — bye</div>` : `<div class="td-match"><span>${name(m.p1)} vs ${name(m.p2)}</span><b>${m.p1wins == null ? '—' : m.forfeit ? 'forfeit' : t.mode === 'roundrobin' ? (m.p1wins > m.p2wins ? name(m.p1).split(' ')[0] : name(m.p2).split(' ')[0]) : `${m.p1wins}–${m.p2wins}${m.draws ? '–' + m.draws : ''}`}</b></div>`).join('')}</details>`).join('');
   showModalCustom(`${fmtDate(t.date)} · ${t.set || 'Draft'}`, `${t.mode === 'roundrobin' ? 'Round robin BO1' : 'Swiss'} · ${t.entrants.length} giocatori`,
-    `<div class="td-list">${standings}</div><div class="text-xs text-dim mt">Tocca i colori per correggere i mazzi.</div>
+    `<div class="td-list">${standings}</div>
+    <button class="btn btn-secondary btn-sm mt" style="width:100%;" onclick="openDeckEditor('${t.id}')">🎨 ${nDecks ? 'Modifica mazzi' : 'Segna i mazzi'} (${nDecks}/${ranked.length})</button>
     <div class="mt">${rounds}</div>
     <div class="mt"><label class="field-label" for="tdSet">Set / cube</label><div style="display:flex;gap:8px;"><input type="text" id="tdSet" value="${esc(t.set || '')}" maxlength="40"><button class="btn btn-secondary btn-sm" style="width:auto;" onclick="saveTournamentSet('${t.id}')">Salva</button></div></div>
     <div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="closeModal()">Chiudi</button><button class="btn btn-danger btn-sm" onclick="confirmDeleteTournament('${t.id}')">Elimina</button></div>`);
-}
-function toggleArchivedDeck(tid, id, c) {
-  const t = L.tournaments[tid], cur = (t.decks && t.decks[id]) || '';
-  const next = COLORS.filter(x => (x === c ? !cur.includes(x) : cur.includes(x))).join('');
-  updateTournament(tid, { decks: { ...(t.decks || {}), [id]: next } });
-  openTournament(tid); if ($id('screen-league').classList.contains('active')) renderLeague();
 }
 function saveTournamentSet(tid) { updateTournament(tid, { set: $id('tdSet').value.trim() }); closeModal(); renderLeague(); toast('Torneo aggiornato'); }
 function confirmDeleteTournament(tid) {
@@ -390,17 +386,63 @@ function checkUpset(m) {
   if (!a || !b || !playerStats(a).tournaments || !playerStats(b).tournaments) return false;
   return eloExpected(playerStats(a).elo, playerStats(b).elo) < 0.3;
 }
-// Colori del mazzo nel torneo corrente (dalla classifica); se il torneo è già archiviato aggiorna anche l'archivio
-function deckPickerHtml(pid) {
-  const cur = (T.decks && T.decks[pid]) || '';
-  return `<div class="deck-picker"><span class="text-xs text-dim">Mazzo</span>${COLORS.map(c => `<button class="pip pip-${c}${cur.includes(c) ? '' : ' off'}" onclick="event.stopPropagation();toggleDeckColor(${pid},'${c}')" aria-pressed="${cur.includes(c)}" aria-label="${COLOR_NAMES[c]}">${c}</button>`).join('')}</div>`;
-}
-function toggleDeckColor(pid, c) {
-  const cur = (T.decks && T.decks[pid]) || '';
-  doOp({ t: 'deck', pid, colors: COLORS.filter(x => (x === c ? !cur.includes(x) : cur.includes(x))).join('') });
-  if (T.archivedId && L.tournaments[T.archivedId]) {
-    const p = P(pid), lid = p && p.leagueId, t = L.tournaments[T.archivedId];
-    if (lid) updateTournament(T.archivedId, { decks: { ...(t.decks || {}), [lid]: T.decks[pid] } });
+// ── Mazzi: un solo editor, per il torneo in corso e per quelli archiviati ──
+// target 'cur' = torneo su questo telefono (chiave = id nel torneo): passa da doOp, così arriva agli altri telefoni,
+// e se il torneo è già archiviato aggiorna anche lo storico. Altrimenti id di un torneo archiviato (chiave = id di lega).
+// Un torneo archiviato che è ancora quello aperto qui si modifica come 'cur', così torneo e storico restano allineati.
+let deckTarget = null;
+function deckTargetFor(tid) { return tid && T.started && T.archivedId === tid ? 'cur' : tid || 'cur'; }
+function deckEntries(target) {
+  if (target === 'cur') {
+    const seat = p => { const i = (T.draftOrder || []).indexOf(p.id); return i < 0 ? 99 : i; };
+    return T.players.slice().sort((a, b) => seat(a) - seat(b)).map(p => ({ key: String(p.id), name: p.name, colors: (T.decks && T.decks[p.id]) || '' }));
   }
-  save(); renderStandings();
+  const t = L.tournaments[target]; if (!t) return [];
+  return rankedIds(t).map(id => ({ key: id, name: t.names && t.names[id] ? t.names[id] : leagueName(id), colors: (t.decks && t.decks[id]) || '' }));
 }
+function deckCountText(entries) { const n = entries.filter(e => e.colors).length; return n === entries.length ? `Tutti i ${n} mazzi segnati ✓` : `${n} su ${entries.length} mazzi segnati`; }
+// Etichetta dei pulsanti che aprono l'editor dal torneo in corso
+function deckBtnLabel() { const e = deckEntries('cur'), n = e.filter(x => x.colors).length; return n === e.length ? '🎨 Mazzi ✓' : `🎨 Mazzi ${n}/${e.length}`; }
+function deckRowHtml(target, e) {
+  return `<div class="deck-row" id="deck-${e.key}"><span class="deck-name">${esc(e.name)}</span><span class="deck-pips">${COLORS.map(c => `<button class="pip pip-${c}${e.colors.includes(c) ? '' : ' off'}" data-c="${c}" onclick="toggleDeck('${target}','${e.key}','${c}')" aria-pressed="${e.colors.includes(c)}" aria-label="${COLOR_NAMES[c]} per ${esc(e.name)}">${c}</button>`).join('')}</span></div>`;
+}
+function openDeckEditor(tid) {
+  const target = deckTargetFor(tid), entries = deckEntries(target);
+  if (!entries.length) return;
+  deckTarget = target;
+  showModalCustom('🎨 Mazzi', 'Tocca i colori del mazzo di ogni giocatore: servono per le statistiche colore e per le medaglie.',
+    `<div class="text-xs text-dim" id="deckCount">${deckCountText(entries)}</div><div class="deck-list">${entries.map(e => deckRowHtml(target, e)).join('')}</div>
+    <button class="btn btn-primary mt" onclick="${tid ? `openTournament('${tid}')` : 'closeModal()'}">Fatto</button>`);
+}
+function setDeck(target, key, colors) {
+  if (target === 'cur') {
+    const pid = Number(key);
+    if (!doOp({ t: 'deck', pid, colors })) return;
+    const t = T.archivedId && L.tournaments[T.archivedId], p = P(pid), lid = p && p.leagueId;
+    if (t && lid) updateTournament(T.archivedId, { decks: { ...(t.decks || {}), [lid]: colors } });
+    save();
+  } else {
+    const t = L.tournaments[target]; if (!t) return;
+    updateTournament(target, { decks: { ...(t.decks || {}), [key]: colors } });
+  }
+}
+function toggleDeck(target, key, c) {
+  const e = deckEntries(target).find(x => x.key === String(key)); if (!e) return;
+  setDeck(target, e.key, COLORS.filter(x => (x === c ? !e.colors.includes(x) : e.colors.includes(x))).join(''));
+  paintDeckEditor();
+  if (T.started) { renderStandings(); if ($id('screen-round').classList.contains('active')) renderRound(true); }
+  if ($id('screen-league').classList.contains('active')) renderLeague();
+}
+// Aggiorna l'editor aperto senza ridisegnarlo: niente salto in cima alla lista e il focus resta sul pulsante toccato.
+// Chiamata anche quando i mazzi cambiano su un altro telefono.
+function paintDeckEditor() {
+  if (!deckTarget || !$id('modal').classList.contains('active')) return;
+  const entries = deckEntries(deckTarget);
+  for (const e of entries) {
+    const row = document.getElementById('deck-' + e.key); if (!row) continue;
+    row.querySelectorAll('button[data-c]').forEach(b => { const on = e.colors.includes(b.dataset.c); b.classList.toggle('off', !on); b.setAttribute('aria-pressed', String(on)); });
+  }
+  const cnt = document.getElementById('deckCount'); if (cnt) cnt.textContent = deckCountText(entries);
+}
+// Colori di un mazzo in piccolo, accanto ai nomi (sola lettura)
+function deckPips(colors) { const h = pips(colors); return h ? `<span class="pips-sm">${h}</span>` : ''; }

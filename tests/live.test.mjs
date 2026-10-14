@@ -76,6 +76,11 @@ function tournament() {
   S.live.updatedAt = 0; S.live.rev = 0;
   app.liveApply(snap, 100);
   check('segui: torneo di un altro telefono → banner visibile', app.liveVisible() && /Round 1\/3/.test(app.liveBannerHtml()));
+  check('segui: mentre qui si gestisce un torneo il banner resta solo nella Lega', !app.liveBannerShown());
+  S.T.ended = true;
+  app.renderLiveUI();
+  check('segui: torneo locale concluso → banner su tutte le schermate', app.liveBannerShown() && /Torneo in corso/.test(sandbox.document.getElementById('liveBanner').innerHTML));
+  S.T.ended = false;
   app.liveApply({ ...snap, id: S.T.id }, 101);
   check('segui: il torneo gestito da qui non mostra il banner', !app.liveVisible());
   app.liveApply({ ...snap, id: undefined, device: app.deviceId() }, 101);

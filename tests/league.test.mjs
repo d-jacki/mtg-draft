@@ -321,14 +321,26 @@ function archived(date, entrants, final, rounds, extra = {}) {
   reset(['A', 'B', 'C', 'D']);
   S.T.rounds = [{ pairings: [match(1, 2, 2, 0), match(3, 4, 2, 0)] }];
   S.T.decks = {}; S.T.ended = true; S.T.archivedId = null;
-  app.toggleDeckColor(1, 'U'); app.toggleDeckColor(1, 'W'); app.toggleDeckColor(1, 'U'); app.toggleDeckColor(1, 'U');
+  app.toggleDeck('cur', 1, 'U'); app.toggleDeck('cur', 1, 'W'); app.toggleDeck('cur', 1, 'U'); app.toggleDeck('cur', 1, 'U');
   check('mazzo: colori in ordine WUBRG, toggle on/off', S.T.decks[1] === 'WU');
+  check('mazzo: contatore dei mazzi segnati', app.deckBtnLabel() === '🎨 Mazzi 1/4' && app.deckCountText(app.deckEntries('cur')) === '1 su 4 mazzi segnati');
   app.archiveCurrent();
-  app.toggleDeckColor(1, 'B');
+  app.toggleDeck('cur', 1, 'B');
   const lid = S.T.players[0].leagueId, t = S.L.tournaments[S.T.archivedId];
   check('mazzo: modifica dopo l\'archivio aggiornata anche nello storico', t.decks[lid] === 'WUB');
+  // Dallo storico, il torneo ancora aperto qui: un solo editor, torneo e archivio restano allineati
+  check('mazzo: dallo storico il torneo aperto qui si modifica come torneo corrente', app.deckTargetFor(S.T.archivedId) === 'cur');
+  const lid2 = S.T.players[1].leagueId;
+  app.openDeckEditor(S.T.archivedId); app.toggleDeck(app.deckTargetFor(S.T.archivedId), 2, 'G');
+  check('mazzo: dallo storico aggiorna anche il torneo (e quindi il live)', S.T.decks[2] === 'G' && S.L.tournaments[S.T.archivedId].decks[lid2] === 'G');
   const col = app.playerStats(lid).colors;
   check('statistiche colore: mazzi e match vinti', col.W.decks === 1 && col.B.mW === 1 && !col.R);
+  // Torneo archiviato che non è più aperto qui: chiave = id di lega
+  const tid = S.T.archivedId; S.T.archivedId = null;
+  app.toggleDeck(app.deckTargetFor(tid), lid2, 'R');
+  check('mazzo: torneo vecchio modificato solo nello storico', S.L.tournaments[tid].decks[lid2] === 'RG' && S.T.decks[2] === 'G');
+  S.T.archivedId = tid;
+  check('mazzo: i colori compaiono accanto ai nomi in classifica e nei match', (app.renderStandings(), /pips-sm/.test(sandbox.document.getElementById('standingsContent').innerHTML)) && /pip-G/.test(app.matchDeck(2)));
 }
 
 // ── 12. Colpaccio: vince lo sfavorito secondo l'Elo ──

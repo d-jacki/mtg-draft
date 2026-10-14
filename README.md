@@ -14,7 +14,8 @@ PWA per gestire tornei di Magic: The Gathering tra amici — draft con pairing *
 - Risultati completi inclusi i casi a tempo scaduto (1-0, 1-1, 1-0-1, 0-0-1, …) e ID come `(0,0,1)`
 - Timer round wall-clock configurabile (30–60 min) con wake lock (schermo sempre acceso), beep + vibrazione a −5 minuti e allo scadere; nel torneo condiviso si conta sull'ora del server, così un telefono con l'orologio sbagliato mostra lo stesso tempo degli altri
 - Schermata "Annuncia pairing" a caratteri grandi da mostrare al tavolo, con precedenti e pronostico Elo per ogni tavolo
-- Drop con auto-forfeit, undo round, podio finale con coriandoli, delta posizioni in classifica, colori del mazzo per giocatore
+- Drop con auto-forfeit, undo round, podio finale con coriandoli, delta posizioni in classifica
+- **🎨 Mazzi**: un solo editor dei colori (dalla schermata Round, dalla Classifica o dal torneo nello storico) che aggiorna insieme torneo, diretta e storico; i colori compaiono accanto ai nomi nei match, in classifica e nella diretta
 - Offline-first (service worker, font self-hosted), installabile su Android e iOS, salvataggio automatico in localStorage, avviso quando è disponibile una nuova versione (controllata anche ogni 30 minuti e al ritorno nell'app)
 
 ### Lega (tab "Lega")
@@ -41,7 +42,7 @@ PWA per gestire tornei di Magic: The Gathering tra amici — draft con pairing *
 - Un secondo PIN, impostato in `schema.sql`, che si sblocca su un telefono da **Dati e sync → Avanzate → 🔑 PIN master**
 - Riservate al master: ripristino dalla cronologia, correzione dei risultati di round Swiss già chiusi (i pairing successivi restano), eliminazione di tornei e giocatori, unione di profili, "Chiudi il torneo per tutti", ripristino dei tornei eliminati (**🗑️ Eliminati**)
 - Il PIN master viene verificato dal server, ma il blocco vale solo dentro l'app: protegge dagli errori, non da chi ha il PIN normale e vuole fare danni apposta. Senza PIN master impostato tutto resta disponibile a chi ha il PIN
-- Gli altri vedono il banner **🔴 Torneo in corso · Segui**: pairing, risultati, classifica e timer in tempo reale
+- Gli altri vedono il banner **🔴 Torneo in corso · Segui** sopra tutte le schermate e un pallino rosso sul tab Lega; aprendo l'app senza un torneo da gestire si entra direttamente nella diretta: pairing, risultati, classifica e timer in tempo reale
 - **"Io sono…"**: scegli il tuo nome e l'app ti dice tavolo e avversario (o bye/riposo) ed evidenzia la tua riga
 - Aggiornamenti istantanei con Supabase Realtime, lettura di riserva ogni 20 s; il torneo resta offline-first e ripubblica al ritorno della rete
 
