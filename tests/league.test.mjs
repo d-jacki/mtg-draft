@@ -221,6 +221,12 @@ function archived(date, entrants, final, rounds, extra = {}) {
   check('obiettivi a livelli: il prossimo è Cacciatore di draghi, contato dal livello raggiunto', prog.giant.goal === 5 && prog.giant.name === 'Cacciatore di draghi' && prog.giant.ratio === 0);
   const html = app.renderProfile(d);
   check('profilo: medaglia a livelli con nome del livello e stelle', html.includes('Ammazzagiganti') && html.includes('★★☆'));
+  check('profilo: la medaglia conquistata dice ancora cosa hai fatto, con la data', html.includes('Batti il campione in carica') && html.includes('ach-date'));
+  app.openAch(d, 'giant');
+  const det = sandbox.document.getElementById('modalBody').innerHTML, detTitle = sandbox.document.getElementById('modalTitle').textContent;
+  check('dettaglio medaglia: livello raggiunto, torneo, tutti i livelli e quanto manca', detTitle.includes('Ammazzagiganti') && det.includes('livello 2') && det.includes("openTournament('") && det.includes('Cacciatore di draghi') && det.includes('3/5 colpacci'), det);
+  app.openAch(b, 'fall');
+  check('dettaglio medaglia: la segreta non conquistata resta segreta', sandbox.document.getElementById('modalTitle').textContent.includes('segreta') && !sandbox.document.getElementById('modalBody').innerHTML.includes('Dalle stelle'));
   // Il campione ora è D: B lo batte
   archived('2026-10-03', [b, d], [b, d], [[[b, d, 2, 1]]]);
   check('achievement: Regicida anche contro il campione nuovo', on(b, 'regicide') === '2026-10-03');

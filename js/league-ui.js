@@ -166,7 +166,7 @@ function renderProfile(id) {
     h += renderRivals(id, s);
   }
   h += renderGoals(s);
-  h += renderAchievements(s);
+  h += renderAchievements(s, id);
   if (s.tournaments) h += `<div class="card"><div class="card-title">Tornei</div>${s.finishes.slice().reverse().map(f => { const t = L.tournaments[f.tid], e = s.eloHistory.find(x => x.tid === f.tid); return `<button class="history-item" onclick="openTournament('${f.tid}')"><div class="history-date">${fmtDate(f.date)}</div><div class="history-main"><div class="history-set">${f.dropped ? 'Ritirato' : `${f.pos}° su ${f.of}`} ${pips(t && t.decks && Object.entries(t.decks).find(([k]) => canonicalId(k) === id)?.[1])}</div><div class="text-xs text-dim">${t && t.set ? esc(t.set) + ' · ' : ''}Elo ${e ? Math.round(e.elo) : '—'}</div></div><span class="history-chev" aria-hidden="true">›</span></button>`; }).join('')}</div>`;
   h += renderProfileManage(id, s);
   return h;
@@ -194,17 +194,33 @@ function renderGoals(s) {
   return `<div class="card"><div class="card-title">Prossimi obiettivi</div>${goals.map(g => `<div class="goal-row"><span class="goal-emoji" aria-hidden="true">${g.a.emoji}</span><div class="goal-main">
     <div class="goal-head"><b>${g.name}</b><span class="goal-val">${g.cur}/${g.goal} ${g.unit}</span></div>${goalBar(g)}<div class="text-xs text-dim">${g.desc}</div></div></div>`).join('')}</div>`;
 }
-// Medaglia: le segrete restano "???" finché non le prendi; quelle a livelli mostrano il livello raggiunto e la barra verso il prossimo
-function achTile(s, a, prog) {
+// Medaglia: le segrete restano "???" finché non le prendi; quelle a livelli mostrano il livello raggiunto e la barra verso il prossimo.
+// Anche da conquistata resta scritto cosa hai fatto (con la data sotto); toccandola si apre il dettaglio.
+function achTile(s, a, prog, pid) {
   const e = s.achievements[a.id], g = prog[a.id] && prog[a.id].ratio > 0 ? { a, ...prog[a.id] } : null;
-  if (!e && a.secret) return `<div class="ach locked"><div class="ach-emoji" aria-hidden="true">❓</div><div class="ach-name">???</div><div class="ach-desc">Medaglia segreta</div></div>`;
+  const open = `onclick="openAch('${pid}','${a.id}')"`;
+  if (!e && a.secret) return `<button class="ach locked" ${open}><div class="ach-emoji" aria-hidden="true">❓</div><div class="ach-name">???</div><div class="ach-desc">Medaglia segreta</div></button>`;
   const level = e && e.level || 0, max = a.tiers ? a.tiers.length : 0, tier = achTier(a, Math.max(level - 1, 0));
   const stars = max ? `<div class="ach-tier" role="img" aria-label="Livello ${level} di ${max}">${'★'.repeat(level)}${'☆'.repeat(max - level)}</div>` : '';
-  return `<div class="ach${e ? '' : ' locked'}" title="${tier.desc}"><div class="ach-emoji" aria-hidden="true">${a.emoji}</div><div class="ach-name">${tier.name}</div>${stars}<div class="ach-desc">${e ? fmtDate(e.date) : tier.desc}</div>${g ? goalBar(g) : ''}</div>`;
+  return `<button class="ach${e ? '' : ' locked'}" ${open}><div class="ach-emoji" aria-hidden="true">${a.emoji}</div><div class="ach-name">${tier.name}</div>${stars}<div class="ach-desc">${tier.desc}</div>${e ? `<div class="ach-date">✓ ${fmtDate(e.date)}</div>` : ''}${g ? goalBar(g) : ''}</button>`;
 }
-function renderAchievements(s) {
+function renderAchievements(s, pid) {
   const prog = achievementProgress(s), got = ACHIEVEMENTS.filter(a => s.achievements[a.id]).length;
-  return `<div class="card"><div class="card-title">Achievement <span class="text-xs text-dim" style="font-family:inherit;font-weight:600;">${got}/${ACHIEVEMENTS.length}</span></div><div class="ach-grid">${ACHIEVEMENTS.map(a => achTile(s, a, prog)).join('')}</div></div>`;
+  return `<div class="card"><div class="card-title">Achievement <span class="text-xs text-dim" style="font-family:inherit;font-weight:600;">${got}/${ACHIEVEMENTS.length}</span></div><div class="ach-grid">${ACHIEVEMENTS.map(a => achTile(s, a, prog, pid)).join('')}</div><div class="text-xs text-dim mt">Tocca una medaglia per i dettagli.</div></div>`;
+}
+// Dettaglio medaglia: cosa serve, quando e in quale torneo l'hai presa, i livelli e quanto manca al prossimo
+function openAch(pid, aid) {
+  const a = ACH[aid], s = playerStats(pid); if (!a) return;
+  const e = s.achievements[aid], p = achievementProgress(s)[aid];
+  if (!e && a.secret) return showModalCustom('❓ Medaglia segreta', 'Cosa serve si scopre solo conquistandola.', `<button class="btn btn-primary" onclick="closeModal()">Ok</button>`);
+  const level = e && e.level || 0, tier = achTier(a, Math.max(level - 1, 0)), t = e && L.tournaments[e.tid];
+  let h = '';
+  if (e) h += `<div class="kv"><span>Conquistata</span><b>${fmtDate(e.date)}${a.tiers ? ` · livello ${level}` : ''}</b></div>`
+    + (t && !t.deleted ? `<button class="history-item" onclick="openTournament('${t.id}')"><div class="history-date">${fmtDate(t.date)}</div><div class="history-main"><div class="history-set">${t.set ? esc(t.set) : 'Draft'}</div><div class="text-xs text-dim">Il torneo in cui l'hai presa</div></div><span class="history-chev" aria-hidden="true">›</span></button>` : '');
+  else h += `<div class="text-sm text-dim">Non ancora conquistata.</div>`;
+  if (a.tiers) h += `<div class="mt">${a.tiers.map((x, i) => { const tt = achTier(a, i), ok = i < level; return `<div class="ach-level${ok ? ' ok' : ''}"><span aria-hidden="true">${ok ? '★' : '☆'}</span><div><b>${tt.name}</b><div class="text-xs text-dim">${tt.desc}</div></div></div>`; }).join('')}</div>`;
+  if (p && p.goal) h += `<div class="mt"><div class="goal-head"><span class="text-sm">${a.tiers && level ? 'Verso il prossimo livello' : 'Progresso'}</span><span class="goal-val">${p.cur}/${p.goal} ${p.unit}</span></div>${goalBar({ a, ...p })}</div>`;
+  showModalCustom(`${a.emoji} ${tier.name}`, tier.desc, `${h}<button class="btn btn-primary mt" onclick="closeModal()">Chiudi</button>`);
 }
 function renderProfileManage(id, s) {
   const p = resolvePlayer(id), others = leaguePlayers().filter(o => o.id !== id).sort((a, b) => a.name.localeCompare(b.name, 'it'));
