@@ -25,7 +25,7 @@ PWA per gestire tornei di Magic: The Gathering tra amici — draft con pairing *
 - **Campionato** stagionale: 1 punto per ogni giocatore che ti arriva dietro + 1 di presenza + 2 al vincitore (chi si ritira: solo presenza)
 - **Rating Elo** su tutti i match (partenza 1500, K=32; bye e forfeit esclusi), con andamento nel tempo
 - **Profilo**: tornei, vittorie, podi, record match/game, forma recente, grafico Elo, statistiche per colore, nemesi e vittima preferita
-- **Scontri diretti**: matrice tutti-contro-tutti
+- **Scontri diretti**: scegli un giocatore (all'inizio quello di "Io sono…") e leggi il suo record contro ognuno, con una barra vinti/patte/persi; toccando un avversario, tutti i match tra i due (e il torneo di ciascuno). La matrice tutti-contro-tutti resta in fondo
 - **Achievement** (35, retroattivi), tutte nella stessa griglia: alcune a livelli (Tripletta → Manita → Leggenda, Colpaccio → Ammazzagiganti → Cacciatore di draghi, Veterano → Habitué → Istituzione), 10 per ridere (fuori dai prossimi obiettivi), di cui 6 segrete che restano "???" finché non le prendi
 - Titoli: 👑 campione in carica, 🩷 leader del campionato
 - **Prossimi obiettivi** nel profilo: le tre medaglie più vicine con quanto manca (es. Veterano 7/10 tornei, Quota 1700 da 1500 in su; per le medaglie a livelli, il livello successivo)

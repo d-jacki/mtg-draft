@@ -2,7 +2,7 @@
 // dettaglio torneo archiviato, dati e sync. Più gli agganci nel torneo: giocatori abituali nel setup,
 // precedenti nell'annuncio pairing, colori del mazzo, "colpaccio".
 
-const LUI = { view: 'champ', season: null, profile: null, live: false };
+const LUI = { view: 'champ', season: null, profile: null, live: false, h2h: null };
 const LEAGUE_VIEWS = [['champ', 'Campionato'], ['elo', 'Elo'], ['history', 'Tornei'], ['h2h', 'Scontri'], ['players', 'Giocatori']];
 
 function fmtDate(iso) {
@@ -88,9 +88,62 @@ function renderHistory() {
   }).join('')}</div>`;
 }
 
+// Scontri diretti: si sceglie un giocatore (all'inizio "Io sono" della diretta, se c'è) e si leggono i suoi precedenti
+// con ognuno, una riga per avversario. La matrice tutti-contro-tutti resta in fondo, chiusa: sul telefono con più di
+// 5-6 giocatori esce dallo schermo e le colonne hanno solo l'emoji.
+function setH2HPlayer(id) { LUI.h2h = id; renderLeague(); }
 function renderH2H() {
   const ids = eloTable().map(r => r.id);
   if (ids.length < 2) return `<div class="card text-sm text-dim">Servono almeno due giocatori con match giocati.</div>`;
+  const me = typeof liveMe === 'function' && liveMe() ? findPlayerByName(liveMe()) : null;
+  const sel = LUI.h2h && ids.includes(canonicalId(LUI.h2h)) ? canonicalId(LUI.h2h) : me && ids.includes(me.id) ? me.id : ids[0];
+  LUI.h2h = sel;
+  // Nome breve sui chip: il primo nome, quello intero se due giocatori lo condividono
+  const first = id => leagueName(id).split(' ')[0];
+  const short = id => ids.some(o => o !== id && first(o).toLowerCase() === first(id).toLowerCase()) ? leagueName(id) : first(id);
+  const opps = ids.filter(o => o !== sel).map(o => { const r = headToHead(sel, o); return { id: o, ...r, n: r.w + r.l + r.d }; });
+  const met = opps.filter(o => o.n).sort((a, b) => b.n - a.n || (b.w - b.l) - (a.w - a.l)), never = opps.filter(o => !o.n);
+  const tot = met.reduce((t, o) => ({ w: t.w + o.w, l: t.l + o.l, d: t.d + o.d }), { w: 0, l: 0, d: 0 }), n = tot.w + tot.l + tot.d;
+  const rec = o => `${o.w}–${o.l}${o.d ? '–' + o.d : ''}`;
+  const rows = met.map(o => {
+    const trend = o.w > o.l ? 'up' : o.w < o.l ? 'down' : 'flat';
+    return `<button class="h2h-row" onclick="openH2HDetail('${sel}','${o.id}')" aria-label="${esc(leagueName(sel))} contro ${esc(leagueName(o.id))}: ${o.w} vinti, ${o.l} persi${o.d ? `, ${o.d} patte` : ''}">
+      <span class="h2h-row-top">${whoHtml(o.id)}<b class="h2h-rec ${trend}">${rec(o)}</b><span class="history-chev" aria-hidden="true">›</span></span>
+      <span class="h2h-bar" aria-hidden="true">${o.w ? `<i class="w" style="flex:${o.w}"></i>` : ''}${o.d ? `<i class="d" style="flex:${o.d}"></i>` : ''}${o.l ? `<i class="l" style="flex:${o.l}"></i>` : ''}</span></button>`;
+  }).join('');
+  return `<div class="h2h-picks" role="group" aria-label="Scegli il giocatore">${ids.map(id => `<button class="league-tab h2h-pick${id === sel ? ' active' : ''}" aria-pressed="${id === sel}" onclick="setH2HPlayer('${id}')"><span aria-hidden="true">${leagueEmoji(id)}</span> ${esc(short(id))}</button>`).join('')}</div>
+    <div class="card"><div class="card-title" style="margin-bottom:4px;">${whoHtml(sel)} <span class="h2h-vs">contro gli altri</span></div>
+    <div class="text-xs text-dim mb">${n ? `${tot.w} vint${tot.w === 1 ? 'o' : 'i'} · ${tot.l} pers${tot.l === 1 ? 'o' : 'i'}${tot.d ? ` · ${tot.d} patt${tot.d === 1 ? 'a' : 'e'}` : ''} in ${n} match` : 'Nessun match contro altri giocatori della lega.'}</div>
+    ${rows}
+    ${never.length ? `<div class="text-xs text-dim mt">Mai affrontati: ${never.map(o => esc(leagueName(o.id))).join(', ')}</div>` : ''}
+    ${met.length ? `<div class="h2h-legend text-xs text-dim"><span><i class="h2h-sw" style="background:var(--accent)"></i>vinti</span><span><i class="h2h-sw" style="background:var(--border-focus)"></i>patte</span><span><i class="h2h-sw" style="background:var(--warm)"></i>persi</span><span>· tocca per i match</span></div>` : ''}</div>
+    <details class="card manage"><summary class="card-title" style="margin:0;">Tabella tutti contro tutti</summary><div class="mt">${renderH2HMatrix(ids)}</div></details>`;
+}
+// Tutti i match tra a e b (dal punto di vista di a), dal più recente; come per l'Elo, bye e forfeit non contano
+function h2hMatches(a, b) {
+  const out = [];
+  for (const t of sortedTournaments()) t.rounds.forEach((round, ri) => {
+    for (const m of round) {
+      if (m.rest || m.bye || m.forfeit || m.p1wins == null || m.p2 == null) continue;
+      const x = canonicalId(m.p1), y = canonicalId(m.p2);
+      if (!((x === a && y === b) || (x === b && y === a))) continue;
+      out.push({ t, round: ri + 1, mine: x === a ? m.p1wins : m.p2wins, theirs: x === a ? m.p2wins : m.p1wins, draws: m.draws || 0, isId: isIdMatch(m) });
+    }
+  });
+  return out.reverse();
+}
+function openH2HDetail(a, b) {
+  const ms = h2hMatches(a, b), r = headToHead(a, b);
+  const row = m => {
+    const res = m.mine > m.theirs ? 'W' : m.mine < m.theirs ? 'L' : 'D';
+    const label = m.isId ? 'ID' : m.t.mode === 'roundrobin' ? { W: 'Vinto', L: 'Perso', D: 'Pari' }[res] : `${m.mine}–${m.theirs}${m.draws ? '–' + m.draws : ''}`;
+    return `<button class="history-item" onclick="openTournament('${m.t.id}')"><div class="history-date">${fmtDate(m.t.date)}</div><div class="history-main"><div class="history-set">${m.t.set ? esc(m.t.set) : 'Draft'}</div><div class="text-xs text-dim">Round ${m.round}</div></div><b class="h2h-res ${res}">${label}</b></button>`;
+  };
+  showModalCustom(`${leagueName(a)} contro ${leagueName(b)}`, `${r.w} vint${r.w === 1 ? 'o' : 'i'}, ${r.l} pers${r.l === 1 ? 'o' : 'i'}${r.d ? `, ${r.d} patt${r.d === 1 ? 'a' : 'e'}` : ''} per ${leagueName(a)}.`,
+    `<div class="hist-list">${ms.map(row).join('')}</div>
+    <div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="openH2HDetail('${b}','${a}')">Dal lato di ${esc(leagueName(b).split(' ')[0])}</button><button class="btn btn-secondary btn-sm" onclick="closeModal()">Chiudi</button></div>`);
+}
+function renderH2HMatrix(ids) {
   const cell = (a, b) => {
     if (a === b) return `<td class="h2h-self" aria-hidden="true"></td>`;
     const r = headToHead(a, b), n = r.w + r.l + r.d;
@@ -99,11 +152,10 @@ function renderH2H() {
     const bg = net > 0 ? `rgba(61,107,142,${alpha})` : net < 0 ? `rgba(196,121,60,${alpha})` : 'var(--bg-input)';
     return `<td class="h2h-cell" style="background:${bg}" title="${esc(leagueName(a))} contro ${esc(leagueName(b))}: ${r.w} vinti, ${r.l} persi${r.d ? `, ${r.d} patte` : ''}">${r.w}–${r.l}${r.d ? `<small>–${r.d}</small>` : ''}</td>`;
   };
-  return `<div class="card"><div class="card-title">Scontri diretti</div>
-    <div class="h2h-wrap"><table class="h2h"><thead><tr><th></th>${ids.map(id => `<th scope="col" title="${esc(leagueName(id))}"><span aria-hidden="true">${leagueEmoji(id)}</span><span class="sr-only">${esc(leagueName(id))}</span></th>`).join('')}</tr></thead>
+  return `<div class="h2h-wrap"><table class="h2h"><thead><tr><th></th>${ids.map(id => `<th scope="col" title="${esc(leagueName(id))}"><span aria-hidden="true">${leagueEmoji(id)}</span><span class="sr-only">${esc(leagueName(id))}</span></th>`).join('')}</tr></thead>
     <tbody>${ids.map(a => `<tr><th scope="row" onclick="openProfile('${a}')">${leagueEmoji(a)} ${esc(leagueName(a).split(' ')[0])}</th>${ids.map(b => cell(a, b)).join('')}</tr>`).join('')}</tbody></table></div>
     <div class="h2h-legend text-xs text-dim"><span><i class="h2h-sw" style="background:rgba(61,107,142,.5)"></i>in vantaggio</span><span><i class="h2h-sw" style="background:var(--bg-input)"></i>pari</span><span><i class="h2h-sw" style="background:rgba(196,121,60,.5)"></i>in svantaggio</span></div>
-    <div class="text-xs text-dim mt">Si legge per riga: vittorie–sconfitte del giocatore a sinistra contro quello in colonna.</div></div>`;
+    <div class="text-xs text-dim mt">Si legge per riga: vittorie–sconfitte del giocatore a sinistra contro quello in colonna.</div>`;
 }
 
 function renderRoster() {

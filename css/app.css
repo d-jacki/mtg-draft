@@ -669,6 +669,27 @@ select {
 .history-chev { color: var(--text-dim); font-size: 1.3rem; }
 .roster-emoji { font-size: 1.4rem; width: 32px; text-align: center; flex: none; }
 
+/* Scontri diretti per giocatore: chip per scegliere, una riga per avversario con barra vinti / patte / persi */
+.h2h-picks { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: -4px -16px 12px; padding: 2px 16px 4px; }
+.h2h-picks::-webkit-scrollbar { display: none; }
+.h2h-pick { min-height: 34px; padding: 0 12px; white-space: nowrap; font-size: 0.8rem; background: var(--bg); }
+/* Diverso dai tab della Lega (pieni): qui si sceglie una persona, non una sezione */
+.h2h-pick.active { background: var(--accent-light); border-color: var(--accent); color: var(--accent-dark); }
+.h2h-vs { font-family: inherit; font-size: 0.78rem; font-weight: 600; color: var(--text-dim); }
+.h2h-row { display: block; width: 100%; padding: 10px 2px; background: none; border: none; border-bottom: 1px solid var(--border); font-family: inherit; color: var(--text); text-align: left; cursor: pointer; }
+.h2h-row:active { background: var(--bg-input); }
+.h2h-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.h2h-row-top { display: flex; align-items: center; gap: 10px; font-size: 0.88rem; }
+.h2h-row-top .who { flex: 1; }
+.h2h-row-top .history-chev { font-size: 1.1rem; line-height: 1; }
+.h2h-rec { font-variant-numeric: tabular-nums; font-weight: 800; }
+.h2h-rec.up { color: var(--accent); } .h2h-rec.down { color: var(--warm); } .h2h-rec.flat { color: var(--text-mid); }
+.h2h-bar { display: flex; gap: 2px; height: 6px; margin-top: 7px; border-radius: 3px; overflow: hidden; }
+.h2h-bar i { display: block; min-width: 4px; }
+.h2h-bar .w { background: var(--accent); } .h2h-bar .d { background: var(--border-focus); } .h2h-bar .l { background: var(--warm); }
+.h2h-res { flex: none; font-variant-numeric: tabular-nums; font-weight: 800; }
+.h2h-res.W { color: var(--accent); } .h2h-res.L { color: var(--warm); } .h2h-res.D { color: var(--text-mid); }
+
 /* Scontri diretti: scala divergente blu (vantaggio) / arancio (svantaggio), grigio = pari; il numero è sempre scritto */
 /* position: relative contiene le etichette .sr-only (assolute), altrimenti allargano la pagina */
 .h2h-wrap { position: relative; overflow-x: auto; margin: 0 -18px; padding: 0 18px; }

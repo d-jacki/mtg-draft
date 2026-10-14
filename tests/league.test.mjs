@@ -363,6 +363,21 @@ function archived(date, entrants, final, rounds, extra = {}) {
   check('colpaccio: lo sfavorito che vince fa scattare l\'upset', app.checkUpset(match(1, 2, 0, 2)) === true);
   check('colpaccio: il favorito che vince no', app.checkUpset(match(1, 2, 2, 0)) === false);
   check('annuncio: precedenti e pronostico', /Precedenti 9–0 · pronostico \d+%–\d+%/.test(app.rivalryHtml(S.T.players[0], S.T.players[1])));
+
+  // Scontri diretti per giocatore: una riga per avversario, il dettaglio con i match
+  S.LUI.h2h = null;
+  sandbox.localStorage.setItem('mtg-me', 'Debole');
+  let h = app.renderH2H();
+  check('scontri: si parte da "Io sono" della diretta', S.LUI.h2h === b && /Debole<\/span><\/span> <span class="h2h-vs">/.test(h));
+  check('scontri: riga con il record contro ogni avversario', /Forte<\/span><\/span><b class="h2h-rec down">0–9<\/b>/.test(h), h.match(/Forte<\/span><\/span><b[^>]*>[^<]*/)?.[0]);
+  app.setH2HPlayer(a); h = app.renderH2H();
+  check('scontri: cambiando giocatore cambia il punto di vista', /Debole<\/span><\/span><b class="h2h-rec up">9–0<\/b>/.test(h) && /0 persi in 27 match/.test(h));
+  check('scontri: la matrice completa resta disponibile', /Tabella tutti contro tutti/.test(h) && /class="h2h"/.test(h));
+  const ms = app.h2hMatches(a, b);
+  check('scontri: dettaglio con tutti i match, dal più recente', ms.length === 9 && ms[0].t.date === '2026-01-09' && ms.every(m => m.mine === 2 && m.theirs === 0));
+  app.openH2HDetail(b, a);
+  check('scontri: dettaglio dal lato dell\'altro', /0 vinti, 9 persi per Debole/.test(sandbox.document.getElementById('modalText').textContent) && /0–2/.test(sandbox.document.getElementById('modalBody').innerHTML));
+  app.closeModal(); sandbox.localStorage.removeItem('mtg-me'); S.LUI.h2h = null;
 }
 
 // ── 13. Smoke test del rendering di tutte le viste ──
